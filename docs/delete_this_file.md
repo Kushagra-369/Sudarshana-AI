@@ -50,3 +50,71 @@ React dashboard (map, alerts, timeline, AI summary)
 4. System is decision *support*, not decision *making* — human verifies every flagged event
 
 Ye version doc mein save kar lo (`docs/architecture.md` mein daal sakte ho) — ye ab tumhara reference point hai for everything else. 
+
+
+///------------------- ADDDD this featuree------------------
+
+Abhi sirf score hai.
+
+Add:
+
+0-25    LOW
+26-50   MEDIUM
+51-75   HIGH
+76-100  CRITICAL
+
+Dashboard pe color-coded queue.
+
+Operator pehle CRITICAL dekhega.
+
+Ye practical defence workflow jaisa lagta hai.
+
+-------------------------------------------
+4. AI Summary weak differentiator hai
+
+Aaj kal sab:
+
+Gemini summarize
+
+kar dete hain.
+
+Isse judge impress nahi hoga.
+
+Better
+
+AI Summary + Recommended Action
+
+Example:
+
+Summary:
+Vehicle entered restricted zone.
+
+Recommended Action:
+Verify vehicle identity using nearest camera feed.
+
+Ab AI sirf narrator nahi, assistant lagta hai.
+---------------------------------------------------------
+5. Missing Replay System ⭐
+
+Ye mujhe sabse valuable addition lagta hai.
+
+Alert pe click:
+
+Event #204
+
+▶ Replay Incident
+
+Last 20 seconds ka clip.
+
+Judge ko instantly wow factor milega.
+
+Architecture simple rahega:
+
+Event
+↓
+Timestamp
+↓
+Store Clip
+↓
+Replay
+-------------------------------------------------------------
