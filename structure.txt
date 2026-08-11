@@ -1,0 +1,43 @@
+Sudarshana-AI/
+│
+├── frontend/
+│   ├── src/
+│   │   ├── components/
+│   │   │   ├── dashboard/        # Live/recorded video panel, map
+│   │   │   ├── alerts/           # Active alerts, threat cards
+│   │   │   ├── timeline/         # Event timeline
+│   │   │   └── analytics/        # History, incident stats
+│   │   ├── pages/
+│   │   ├── layouts/
+│   │   ├── services/             # API calls + polling/websocket
+│   │   ├── hooks/
+│   │   ├── context/
+│   │   ├── utils/
+│   │   └── assets/
+│   └── public/
+│
+├── backend/
+│   ├── config/
+│   ├── controllers/
+│   ├── routes/
+│   ├── models/                   # Event, Object, ThreatScore schemas
+│   ├── middleware/
+│   ├── services/
+│   ├── utils/
+│   ├── types/
+│   ├── data/                     # Simulated sensor/event JSON
+│   │
+│   └── ai/
+│       ├── detection/            # YOLO wrapper, frame processing
+│       ├── tracking/             # Object tracking (person #01, vehicle #04 etc.)
+│       ├── anomaly/              # Rule-based anomaly engine
+│       ├── scoring/               # Explainable threat scoring logic
+│       └── summary/              # GenAI situation summary (optional LLM layer)
+│
+├── docs/
+│   ├── architecture-diagram.png
+│   ├── system-workflow.md
+│   └── demo-script.md
+│
+├── README.md
+└── .gitignore
