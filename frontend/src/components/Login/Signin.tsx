@@ -1,0 +1,1150 @@
+import React, { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { GoogleLogin } from "@react-oauth/google";
+import { jwtDecode } from "jwt-decode";
+import { APIURL } from "../../GlobalAPIURL";
+import {
+    Shield,
+    Mail,
+    Lock,
+    Eye,
+    EyeOff,
+    ArrowRight,
+    AlertCircle,
+    Loader2,
+    User,
+    Building2,
+    KeyRound,
+} from "lucide-react";
+
+type LoginRole = "USER" | "BASE_HEAD" | "ADMIN";
+
+
+const Signin: React.FC = () => {
+    const navigate = useNavigate();
+
+    // =====================================================
+    // ROLE
+    // =====================================================
+
+    const [selectedRole, setSelectedRole] =
+        useState<LoginRole>("USER");
+
+    // =====================================================
+    // FORM
+    // =====================================================
+
+    const [email, setEmail] = useState("");
+    const [password, setPassword] = useState("");
+
+    const [showPassword, setShowPassword] = useState(false);
+
+    const [loading, setLoading] = useState(false);
+    const [, setGoogleLoading] = useState(false);
+
+    const [error, setError] = useState("");
+
+    // =====================================================
+    // ROLE NAME
+    // =====================================================
+
+    const roleName = {
+        USER: "User",
+        BASE_HEAD: "Base Head",
+        ADMIN: "Administrator",
+    }[selectedRole];
+
+    // =====================================================
+    // ROLE CHANGE
+    // =====================================================
+
+    const handleRoleChange = (role: LoginRole) => {
+        setSelectedRole(role);
+        setError("");
+    };
+
+    // =====================================================
+    // EMAIL + PASSWORD LOGIN
+    // =====================================================
+
+    const handleEmailLogin = async (
+        e: React.FormEvent<HTMLFormElement>
+    ) => {
+        e.preventDefault();
+
+        setError("");
+
+        if (!email.trim()) {
+            setError("Please enter your email address.");
+            return;
+        }
+
+        if (!password) {
+            setError("Please enter your password.");
+            return;
+        }
+
+        try {
+            setLoading(true);
+
+            const response = await fetch(`${APIURL}/login`, {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                },
+
+                body: JSON.stringify({
+                    email: email.trim(),
+                    password,
+                    role: selectedRole,
+                }),
+            });
+
+            const data = await response.json();
+
+            // =================================================
+            // BACKEND ERROR
+            // =================================================
+
+            if (!response.ok) {
+                setError(
+                    data.message ||
+                    "Unable to sign in. Please check your credentials."
+                );
+
+                return;
+            }
+
+            // =================================================
+            // ROLE VALIDATION
+            // =================================================
+
+            if (!data.user) {
+                setError("Invalid server response.");
+                return;
+            }
+
+            /*
+             * Backend should verify the actual account role.
+             * Frontend check is only an additional safeguard.
+             */
+
+            if (data.user.role !== selectedRole) {
+                setError(
+                    `This account is not registered as ${roleName}.`
+                );
+
+                return;
+            }
+
+            // =================================================
+            // STORE TEMPORARY LOGIN DATA
+            // =================================================
+
+            sessionStorage.setItem(
+                "pendingLoginUser",
+                JSON.stringify({
+                    user: data.user,
+                    token: data.token,
+                    role: data.user.role,
+                    email: email.trim(),
+                })
+            );
+
+            // =================================================
+            // OTP
+            // =================================================
+
+            navigate("/otp-verification");
+        } catch (error) {
+            console.error("Login error:", error);
+
+            setError(
+                "Unable to connect to the server. Please try again."
+            );
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    // =====================================================
+    // GOOGLE LOGIN
+    // =====================================================
+
+    const handleGoogleSuccess = async (credentialResponse: {
+        credential?: string;
+    }) => {
+        setError("");
+
+        if (!credentialResponse.credential) {
+            setError("Google authentication failed.");
+            return;
+        }
+
+        try {
+            setGoogleLoading(true);
+
+            // Decode Google credential
+            const decoded: {
+                sub: string;
+                name?: string;
+                email?: string;
+                picture?: string;
+            } = jwtDecode(credentialResponse.credential);
+
+            if (!decoded.email || !decoded.sub) {
+                setError("Unable to read Google account details.");
+                return;
+            }
+
+            // Send Google user details to backend
+           const response = await fetch(`${APIURL}/google`, {
+                method: "POST",
+
+                headers: {
+                    "Content-Type": "application/json",
+                },
+
+                body: JSON.stringify({
+                    googleId: decoded.sub,
+                    name: decoded.name || "Google User",
+                    email: decoded.email,
+                    picture: decoded.picture || "",
+                    role: selectedRole,
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                setError(
+                    data.message || "Google Sign-In failed."
+                );
+                return;
+            }
+
+            if (!data.user) {
+                setError("Invalid response from server.");
+                return;
+            }
+
+            // Save authenticated user
+            sessionStorage.setItem(
+                "authUser",
+                JSON.stringify(data.user)
+            );
+
+            // Save JWT if backend returns one
+            if (data.token) {
+                sessionStorage.setItem(
+                    "authToken",
+                    data.token
+                );
+            }
+
+            // ==========================================
+            // ROLE BASED REDIRECTION
+            // ==========================================
+
+            if (data.user.role === "USER") {
+                navigate("/command");
+                return;
+            }
+
+            if (data.user.role === "BASE_HEAD") {
+
+                if (data.user.status === "PENDING") {
+                    navigate("/waiting-for-approval");
+                    return;
+                }
+
+                navigate("/command");
+                return;
+            }
+
+            if (data.user.role === "ADMIN") {
+                navigate("/command");
+                return;
+            }
+
+            navigate("/command");
+
+        } catch (error) {
+            console.error(
+                "Google login error:",
+                error
+            );
+
+            setError(
+                "Unable to connect to authentication server."
+            );
+        } finally {
+            setGoogleLoading(false);
+        }
+    };
+
+    // =====================================================
+    // FORGOT PASSWORD
+    // =====================================================
+
+    const handleForgotPassword = () => {
+        setError("Password recovery will be available soon.");
+    };
+
+    // =====================================================
+    // ROLE ICON
+    // =====================================================
+
+    const RoleIcon = () => {
+        if (selectedRole === "USER") {
+            return <User size={16} />;
+        }
+
+        if (selectedRole === "BASE_HEAD") {
+            return <Building2 size={16} />;
+        }
+
+        return <KeyRound size={16} />;
+    };
+
+    // =====================================================
+    // UI
+    // =====================================================
+
+    return (
+        <div style={styles.page}>
+            {/* Background */}
+
+            <div style={styles.grid} />
+            <div style={styles.glowOne} />
+            <div style={styles.glowTwo} />
+
+            <div style={styles.container}>
+
+                {/* =================================================
+            LEFT PANEL
+        ================================================= */}
+
+                <div style={styles.leftPanel}>
+
+                    {/* BRAND */}
+
+                    <div style={styles.brand}>
+                        <div style={styles.logo}>
+                            <Shield size={24} />
+                        </div>
+
+                        <div>
+                            <div style={styles.brandName}>
+                                SUDARSHANA
+                                <span style={styles.brandAccent}>-AI</span>
+                            </div>
+
+                            <div style={styles.brandSub}>
+                                DEFENCE INTELLIGENCE SYSTEM
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* MAIN TEXT */}
+
+                    <div style={styles.leftContent}>
+
+                        <div style={styles.systemLabel}>
+                            <span style={styles.greenDot} />
+                            SECURE ACCESS TERMINAL
+                        </div>
+
+                        <h1 style={styles.heading}>
+                            Command.
+                            <br />
+                            Intelligence.
+                            <br />
+                            <span>Awareness.</span>
+                        </h1>
+
+                        <p style={styles.description}>
+                            Secure access to the Sudarshana-AI
+                            situational awareness platform.
+                        </p>
+
+                    </div>
+
+                    {/* SYSTEM STATUS */}
+
+                    <div style={styles.systemInfo}>
+
+                        <div style={styles.infoItem}>
+                            <span>SYSTEM</span>
+                            <strong>OPERATIONAL</strong>
+                        </div>
+
+                        <div style={styles.infoItem}>
+                            <span>PROCESSING</span>
+                            <strong>LOCAL</strong>
+                        </div>
+
+                        <div style={styles.infoItem}>
+                            <span>SECURITY</span>
+                            <strong>ENABLED</strong>
+                        </div>
+
+                    </div>
+                </div>
+
+                {/* =================================================
+            RIGHT PANEL
+        ================================================= */}
+
+                <div style={styles.formPanel}>
+
+                    <div style={styles.formContainer}>
+
+                        {/* =================================================
+                ROLE SELECTOR
+            ================================================= */}
+
+                        <div style={styles.roleSelector}>
+
+                            {/* USER */}
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    handleRoleChange("USER")
+                                }
+                                style={{
+                                    ...styles.roleButton,
+                                    ...(selectedRole === "USER"
+                                        ? styles.roleButtonActive
+                                        : {}),
+                                }}
+                            >
+                                <User size={14} />
+                                USER
+                            </button>
+
+                            {/* BASE HEAD */}
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    handleRoleChange("BASE_HEAD")
+                                }
+                                style={{
+                                    ...styles.roleButton,
+                                    ...(selectedRole === "BASE_HEAD"
+                                        ? styles.roleButtonActive
+                                        : {}),
+                                }}
+                            >
+                                <Building2 size={14} />
+                                BASE HEAD
+                            </button>
+
+                            {/* ADMIN */}
+
+                            <button
+                                type="button"
+                                onClick={() =>
+                                    handleRoleChange("ADMIN")
+                                }
+                                style={{
+                                    ...styles.roleButton,
+                                    ...(selectedRole === "ADMIN"
+                                        ? styles.roleButtonActive
+                                        : {}),
+                                }}
+                            >
+                                <KeyRound size={14} />
+                                ADMIN
+                            </button>
+
+                        </div>
+
+                        {/* =================================================
+                HEADER
+            ================================================= */}
+
+                        <div style={styles.formHeader}>
+
+                            <div style={styles.accessBadge}>
+                                <RoleIcon />
+
+                                {roleName.toUpperCase()}
+                            </div>
+
+                            <h2 style={styles.formTitle}>
+                                Sign in
+                            </h2>
+
+                            <p style={styles.formSubtitle}>
+                                Authenticate to access the{" "}
+                                {roleName.toLowerCase()} interface.
+                            </p>
+
+                        </div>
+
+                        {/* =================================================
+                ERROR
+            ================================================= */}
+
+                        {error && (
+                            <div style={styles.errorBox}>
+                                <AlertCircle size={15} />
+
+                                <span>{error}</span>
+                            </div>
+                        )}
+
+                        {/* =================================================
+                LOGIN FORM
+            ================================================= */}
+
+                        <form onSubmit={handleEmailLogin}>
+
+                            {/* EMAIL */}
+
+                            <div style={styles.inputGroup}>
+
+                                <label style={styles.label}>
+                                    EMAIL ADDRESS
+                                </label>
+
+                                <div style={styles.inputWrapper}>
+
+                                    <Mail
+                                        size={17}
+                                        style={styles.inputIcon}
+                                    />
+
+                                    <input
+                                        type="email"
+                                        placeholder="operator@example.com"
+                                        value={email}
+                                        onChange={(e) =>
+                                            setEmail(e.target.value)
+                                        }
+                                        autoComplete="email"
+                                        style={styles.input}
+                                    />
+
+                                </div>
+                            </div>
+
+                            {/* PASSWORD */}
+
+                            <div style={styles.inputGroup}>
+
+                                <div style={styles.labelRow}>
+
+                                    <label style={styles.label}>
+                                        PASSWORD
+                                    </label>
+
+                                    <button
+                                        type="button"
+                                        style={styles.forgotButton}
+                                        onClick={handleForgotPassword}
+                                    >
+                                        Forgot password?
+                                    </button>
+
+                                </div>
+
+                                <div style={styles.inputWrapper}>
+
+                                    <Lock
+                                        size={17}
+                                        style={styles.inputIcon}
+                                    />
+
+                                    <input
+                                        type={
+                                            showPassword
+                                                ? "text"
+                                                : "password"
+                                        }
+                                        placeholder="Enter your password"
+                                        value={password}
+                                        onChange={(e) =>
+                                            setPassword(e.target.value)
+                                        }
+                                        autoComplete="current-password"
+                                        style={styles.input}
+                                    />
+
+                                    <button
+                                        type="button"
+                                        onClick={() =>
+                                            setShowPassword(
+                                                !showPassword
+                                            )
+                                        }
+                                        style={styles.eyeButton}
+                                    >
+                                        {showPassword ? (
+                                            <EyeOff size={17} />
+                                        ) : (
+                                            <Eye size={17} />
+                                        )}
+                                    </button>
+
+                                </div>
+                            </div>
+
+                            {/* SIGN IN */}
+
+                            <button
+                                type="submit"
+                                disabled={loading}
+                                style={{
+                                    ...styles.submitButton,
+                                    opacity: loading ? 0.65 : 1,
+                                    cursor: loading
+                                        ? "not-allowed"
+                                        : "pointer",
+                                }}
+                            >
+
+                                {loading ? (
+                                    <>
+                                        <Loader2
+                                            size={17}
+                                            style={styles.spinner}
+                                        />
+
+                                        AUTHENTICATING...
+                                    </>
+                                ) : (
+                                    <>
+                                        SIGN IN
+
+                                        <ArrowRight size={17} />
+                                    </>
+                                )}
+
+                            </button>
+
+                        </form>
+
+                        {/* =================================================
+                DIVIDER
+            ================================================= */}
+
+                        <div style={styles.divider}>
+
+                            <span
+                                style={styles.dividerLine}
+                            />
+
+                            <p style={styles.dividerText}>
+                                OR
+                            </p>
+
+                            <span
+                                style={styles.dividerLine}
+                            />
+
+                        </div>
+
+                        {/* =================================================
+                GOOGLE
+            ================================================= */}
+
+                        <div style={styles.googleButtonWrapper}>
+                            <GoogleLogin
+                                onSuccess={handleGoogleSuccess}
+                                onError={() => {
+                                    setError("Google Sign-In failed.");
+                                }}
+                                useOneTap={false}
+                                theme="filled_black"
+                                size="large"
+                                text="continue_with"
+                                shape="rectangular"
+                                width="360"
+                            />
+                        </div>
+                        {/* =================================================
+                ROLE INFO
+            ================================================= */}
+
+                        <div style={styles.roleInfo}>
+
+                            <span>
+                                Access level:
+                            </span>
+
+                            <strong>
+                                {roleName}
+                            </strong>
+
+                        </div>
+
+                        {/* =================================================
+                SECURITY
+            ================================================= */}
+
+                        <div style={styles.securityNotice}>
+
+                            <Shield size={12} />
+
+                            <span>
+                                Secure authentication · Protected
+                                connection
+                            </span>
+
+                        </div>
+
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+/* =========================================================
+   STYLES
+========================================================= */
+
+const styles: Record<
+    string,
+    React.CSSProperties
+> = {
+
+    page: {
+        minHeight: "100vh",
+        background: "#080d0c",
+        color: "#e6e8e3",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        position: "relative",
+        overflow: "hidden",
+        fontFamily:
+            '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+    },
+
+    grid: {
+        position: "absolute",
+        inset: 0,
+        backgroundImage:
+            "linear-gradient(rgba(111,174,114,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(111,174,114,.035) 1px, transparent 1px)",
+        backgroundSize: "55px 55px",
+        pointerEvents: "none",
+    },
+
+    glowOne: {
+        position: "absolute",
+        width: "500px",
+        height: "500px",
+        borderRadius: "50%",
+        background:
+            "radial-gradient(circle, rgba(72,120,78,.09), transparent 70%)",
+        left: "-180px",
+        top: "-180px",
+        pointerEvents: "none",
+    },
+
+    glowTwo: {
+        position: "absolute",
+        width: "450px",
+        height: "450px",
+        borderRadius: "50%",
+        background:
+            "radial-gradient(circle, rgba(72,120,78,.06), transparent 70%)",
+        right: "-180px",
+        bottom: "-180px",
+        pointerEvents: "none",
+    },
+
+    container: {
+        width: "min(1080px, 94vw)",
+        minHeight: "650px",
+        display: "grid",
+        gridTemplateColumns: "1.05fr .95fr",
+        border: "1px solid #26352d",
+        background: "#0c1310",
+        position: "relative",
+        zIndex: 2,
+        boxShadow:
+            "0 25px 80px rgba(0,0,0,.45)",
+    },
+
+    /* =====================================================
+       LEFT
+    ===================================================== */
+
+    leftPanel: {
+        padding: "42px",
+        borderRight:
+            "1px solid #26352d",
+        display: "flex",
+        flexDirection: "column",
+        justifyContent: "space-between",
+        background:
+            "linear-gradient(145deg, rgba(20,34,27,.8), rgba(8,13,12,.95))",
+    },
+
+    brand: {
+        display: "flex",
+        alignItems: "center",
+        gap: "12px",
+    },
+
+    logo: {
+        width: "42px",
+        height: "42px",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#14231a",
+        border: "1px solid #3c5c42",
+        color: "#79ae7b",
+    },
+
+    brandName: {
+        fontSize: "17px",
+        fontWeight: 750,
+        letterSpacing: ".7px",
+    },
+
+    brandAccent: {
+        color: "#b8945c",
+    },
+
+    brandSub: {
+        fontSize: "8px",
+        color: "#65736a",
+        letterSpacing: "1.5px",
+        marginTop: "4px",
+    },
+
+    leftContent: {
+        maxWidth: "420px",
+    },
+
+    systemLabel: {
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        color: "#6fae72",
+        fontSize: "9px",
+        fontWeight: 750,
+        letterSpacing: "1.4px",
+        marginBottom: "20px",
+    },
+
+    greenDot: {
+        width: "7px",
+        height: "7px",
+        borderRadius: "50%",
+        background: "#6fae72",
+        boxShadow:
+            "0 0 9px rgba(111,174,114,.5)",
+    },
+
+    heading: {
+        margin: 0,
+        fontSize: "43px",
+        lineHeight: 1.08,
+        fontWeight: 650,
+        letterSpacing: "-1.5px",
+    },
+
+    description: {
+        marginTop: "22px",
+        color: "#7e8b83",
+        fontSize: "13px",
+        lineHeight: 1.7,
+        maxWidth: "360px",
+    },
+
+    systemInfo: {
+        display: "flex",
+        gap: "28px",
+        paddingTop: "22px",
+        borderTop:
+            "1px solid #26352d",
+    },
+
+    infoItem: {
+        display: "flex",
+        flexDirection: "column",
+        gap: "5px",
+    },
+
+    /* =====================================================
+       RIGHT
+    ===================================================== */
+
+    formPanel: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#0b110e",
+    },
+
+    formContainer: {
+        width: "min(360px, 82%)",
+    },
+
+    /* =====================================================
+       ROLE SELECTOR
+    ===================================================== */
+
+    roleSelector: {
+        display: "grid",
+        gridTemplateColumns:
+            "1fr 1fr 1fr",
+        gap: "5px",
+        marginBottom: "27px",
+        padding: "4px",
+        background: "#080d0b",
+        border: "1px solid #26352d",
+    },
+
+    roleButton: {
+        height: "36px",
+        border: "1px solid transparent",
+        background: "transparent",
+        color: "#66736b",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "5px",
+        fontSize: "8px",
+        fontWeight: 750,
+        letterSpacing: ".6px",
+        cursor: "pointer",
+    },
+
+    roleButtonActive: {
+        background: "#1b3020",
+        border:
+            "1px solid #3d6042",
+        color: "#7db17f",
+    },
+
+    /* =====================================================
+       HEADER
+    ===================================================== */
+
+    formHeader: {
+        marginBottom: "27px",
+    },
+
+    accessBadge: {
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "6px",
+        padding: "5px 8px",
+        border:
+            "1px solid #35513a",
+        background:
+            "rgba(111,174,114,.06)",
+        color: "#75a878",
+        fontSize: "8px",
+        fontWeight: 750,
+        letterSpacing: "1.2px",
+        marginBottom: "13px",
+    },
+
+    formTitle: {
+        margin: 0,
+        fontSize: "28px",
+        fontWeight: 650,
+    },
+
+    formSubtitle: {
+        margin: "7px 0 0",
+        color: "#6e7a72",
+        fontSize: "11px",
+        lineHeight: 1.5,
+    },
+
+    /* =====================================================
+       ERROR
+    ===================================================== */
+
+    errorBox: {
+        display: "flex",
+        alignItems: "center",
+        gap: "8px",
+        padding: "10px 12px",
+        marginBottom: "16px",
+        border:
+            "1px solid rgba(217,83,79,.35)",
+        background:
+            "rgba(217,83,79,.07)",
+        color: "#d87874",
+        fontSize: "10px",
+        lineHeight: 1.4,
+    },
+
+    /* =====================================================
+       INPUTS
+    ===================================================== */
+
+    inputGroup: {
+        marginBottom: "17px",
+    },
+
+    labelRow: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent:
+            "space-between",
+        marginBottom: "7px",
+    },
+
+    label: {
+        display: "block",
+        color: "#87938b",
+        fontSize: "9px",
+        fontWeight: 700,
+        letterSpacing: "1px",
+        marginBottom: "7px",
+    },
+
+    forgotButton: {
+        border: "none",
+        background: "none",
+        color: "#6fae72",
+        fontSize: "9px",
+        cursor: "pointer",
+        padding: 0,
+    },
+
+    inputWrapper: {
+        height: "43px",
+        display: "flex",
+        alignItems: "center",
+        border:
+            "1px solid #2a3930",
+        background: "#0e1612",
+    },
+
+    inputIcon: {
+        marginLeft: "12px",
+        color: "#59675e",
+        flexShrink: 0,
+    },
+
+    input: {
+        flex: 1,
+        height: "100%",
+        border: "none",
+        outline: "none",
+        background: "transparent",
+        color: "#dce2dd",
+        padding: "0 11px",
+        fontSize: "12px",
+        fontFamily: "inherit",
+    },
+
+    eyeButton: {
+        border: "none",
+        background: "transparent",
+        color: "#68756d",
+        cursor: "pointer",
+        padding: "10px",
+    },
+
+    /* =====================================================
+       BUTTONS
+    ===================================================== */
+
+    submitButton: {
+        width: "100%",
+        height: "44px",
+        marginTop: "5px",
+        border:
+            "1px solid #527956",
+        background: "#36583b",
+        color: "#edf2ed",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "8px",
+        fontSize: "10px",
+        fontWeight: 750,
+        letterSpacing: "1px",
+    },
+
+    divider: {
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        margin: "20px 0",
+    },
+
+    dividerLine: {
+        flex: 1,
+        height: "1px",
+        background: "#26352d",
+    },
+
+    dividerText: {
+        margin: 0,
+        color: "#4f5c54",
+        fontSize: "9px",
+    },
+
+    googleButton: {
+        width: "100%",
+        height: "43px",
+        border:
+            "1px solid #2a3930",
+        background: "#101813",
+        color: "#b8c1bb",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "9px",
+        fontSize: "9px",
+        fontWeight: 700,
+        letterSpacing: ".7px",
+        cursor: "pointer",
+    },
+
+    googleIcon: {
+        fontSize: "16px",
+        fontWeight: 700,
+        color: "#d7ddd8",
+    },
+
+    /* =====================================================
+       INFO
+    ===================================================== */
+
+    roleInfo: {
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        gap: "6px",
+        marginTop: "20px",
+        color: "#68756d",
+        fontSize: "9px",
+    },
+
+    securityNotice: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "6px",
+        marginTop: "18px",
+        color: "#4f5d54",
+        fontSize: "8px",
+        letterSpacing: ".3px",
+    },
+
+    spinner: {
+        animation:
+            "spin 1s linear infinite",
+    },
+};
+
+export default Signin;
