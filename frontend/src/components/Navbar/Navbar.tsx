@@ -1,5 +1,6 @@
 // components/Navbar.tsx
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   Bell,
   ChevronDown,
@@ -69,6 +70,24 @@ const Navbar: React.FC<NavbarProps> = ({
   const [showOperatorMenu, setShowOperatorMenu] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const operatorRef = useRef<HTMLDivElement>(null);
+  const navigate = useNavigate();
+
+  const location = useLocation();
+
+  const currentPage: NavPage =
+    location.pathname === "/surveillance"
+      ? "surveillance"
+      : location.pathname === "/threats"
+        ? "threats"
+        : location.pathname === "/incidents"
+          ? "incidents"
+          : location.pathname === "/timeline"
+            ? "timeline"
+            : location.pathname === "/analytics"
+              ? "analytics"
+              : location.pathname === "/assistant"
+                ? "assistant"
+                : "command";
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -510,8 +529,11 @@ const Navbar: React.FC<NavbarProps> = ({
         {navItems.map((item) => (
           <button
             key={item.id}
-            style={navLinkStyle(activePage === item.id)}
-            onClick={() => onNavigate?.(item.id)}
+            style={navLinkStyle(currentPage === item.id)}
+            onClick={() => {
+              navigate(`/${item.id}`);
+              onNavigate?.(item.id);
+            }}
           >
             {item.label}
           </button>
