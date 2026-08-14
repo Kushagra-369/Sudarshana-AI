@@ -27,6 +27,9 @@ export interface IUser extends Document {
 
   createdAt: Date;
   updatedAt: Date;
+  totpSecret?: string | null;
+  totpEnabled: boolean;
+
 }
 
 const userSchema = new Schema<IUser>(
@@ -92,6 +95,15 @@ const userSchema = new Schema<IUser>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+    totpSecret: {
+      type: String,
+      default: null,
+    },
+
+    totpEnabled: {
+      type: Boolean,
+      default: false,
     },
   },
   {

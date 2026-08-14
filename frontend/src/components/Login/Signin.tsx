@@ -74,6 +74,10 @@ const Signin: React.FC = () => {
 
         setError("");
 
+        // =================================================
+        // BASIC VALIDATION
+        // =================================================
+
         if (!email.trim()) {
             setError("Please enter your email address.");
             return;
@@ -87,19 +91,103 @@ const Signin: React.FC = () => {
         try {
             setLoading(true);
 
-            const response = await fetch(`${APIURL}/login`, {
-                method: "POST",
+            // =================================================
+            // ADMIN LOGIN
+            // IMPORTANT:
+            // ADMIN DOES NOT USE /login
+            // =================================================
 
-                headers: {
-                    "Content-Type": "application/json",
-                },
+            if (selectedRole === "ADMIN") {
+                const adminResponse = await fetch(
+                    `${APIURL}/admin/login`,
+                    {
+                        method: "POST",
 
-                body: JSON.stringify({
-                    email: email.trim(),
-                    password,
-                    role: selectedRole,
-                }),
-            });
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+
+                        body: JSON.stringify({
+                            email: email.trim(),
+                            password,
+                        }),
+                    }
+                );
+
+                const adminData =
+                    await adminResponse.json();
+
+                // -------------------------------
+                // ADMIN BACKEND ERROR
+                // -------------------------------
+
+                if (!adminResponse.ok) {
+                    setError(
+                        adminData.message ||
+                        "Admin authentication failed."
+                    );
+
+                    return;
+                }
+
+                // -------------------------------
+                // INVALID RESPONSE
+                // -------------------------------
+
+                if (
+                    !adminData.user ||
+                    !adminData.verificationToken
+                ) {
+                    setError(
+                        "Invalid admin authentication response."
+                    );
+
+                    return;
+                }
+
+                // -------------------------------
+                // STORE TEMPORARY ADMIN SESSION
+                // -------------------------------
+
+                sessionStorage.setItem(
+                    "adminPendingAuth",
+                    JSON.stringify({
+                        user: adminData.user,
+                        verificationToken:
+                            adminData.verificationToken,
+                    })
+                );
+
+                // IMPORTANT:
+                // Do NOT save authToken here.
+                // Final admin token comes after TOTP.
+
+                navigate("/admin-verification");
+
+                return;
+            }
+
+            // =================================================
+            // NORMAL LOGIN
+            // USER + BASE HEAD
+            // =================================================
+
+            const response = await fetch(
+                `${APIURL}/login`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+
+                    body: JSON.stringify({
+                        email: email.trim(),
+                        password,
+                        role: selectedRole,
+                    }),
+                }
+            );
 
             const data = await response.json();
 
@@ -117,18 +205,20 @@ const Signin: React.FC = () => {
             }
 
             // =================================================
-            // ROLE VALIDATION
+            // SERVER RESPONSE VALIDATION
             // =================================================
 
             if (!data.user) {
-                setError("Invalid server response.");
+                setError(
+                    "Invalid server response."
+                );
+
                 return;
             }
 
-            /*
-             * Backend should verify the actual account role.
-             * Frontend check is only an additional safeguard.
-             */
+            // =================================================
+            // ROLE VALIDATION
+            // =================================================
 
             if (data.user.role !== selectedRole) {
                 setError(
@@ -139,32 +229,72 @@ const Signin: React.FC = () => {
             }
 
             // =================================================
-            // STORE TEMPORARY LOGIN DATA
+            // USER LOGIN
             // =================================================
 
-            sessionStorage.setItem(
-                "pendingLoginUser",
-                JSON.stringify({
-                    user: data.user,
-                    token: data.token,
-                    role: data.user.role,
-                    email: email.trim(),
-                })
+            if (data.user.role === "USER") {
+
+                sessionStorage.setItem(
+                    "authUser",
+                    JSON.stringify(data.user)
+                );
+
+                if (data.token) {
+                    sessionStorage.setItem(
+                        "authToken",
+                        data.token
+                    );
+                }
+
+                navigate("/user");
+
+                return;
+            }
+
+            // =================================================
+            // BASE HEAD LOGIN
+            // =================================================
+
+            if (data.user.role === "BASE_HEAD") {
+
+                sessionStorage.setItem(
+                    "pendingLoginUser",
+                    JSON.stringify({
+                        user: data.user,
+                        token: data.token,
+                        role: data.user.role,
+                        email: email.trim(),
+                    })
+                );
+
+                navigate("/otp-verification");
+
+                return;
+            }
+
+            // =================================================
+            // UNKNOWN ROLE
+            // =================================================
+
+            setError(
+                "Unsupported account role."
             );
 
-            // =================================================
-            // OTP
-            // =================================================
-
-            navigate("/otp-verification");
         } catch (error) {
-            console.error("Login error:", error);
+
+            console.error(
+                "Login error:",
+                error
+            );
 
             setError(
                 "Unable to connect to the server. Please try again."
             );
+
         } finally {
+
             setLoading(false);
+
         }
     };
 
@@ -185,7 +315,10 @@ const Signin: React.FC = () => {
         try {
             setGoogleLoading(true);
 
-            // Decode Google credential
+            // =================================================
+            // DECODE GOOGLE CREDENTIAL
+            // =================================================
+
             const decoded: {
                 sub: string;
                 name?: string;
@@ -194,83 +327,206 @@ const Signin: React.FC = () => {
             } = jwtDecode(credentialResponse.credential);
 
             if (!decoded.email || !decoded.sub) {
-                setError("Unable to read Google account details.");
+                setError(
+                    "Unable to read Google account details."
+                );
                 return;
             }
 
-            // Send Google user details to backend
-           const response = await fetch(`${APIURL}/google`, {
-                method: "POST",
+            // =================================================
+            // SEND GOOGLE USER TO BACKEND
+            // =================================================
 
-                headers: {
-                    "Content-Type": "application/json",
-                },
+            const response = await fetch(
+                `${APIURL}/google`,
+                {
+                    method: "POST",
 
-                body: JSON.stringify({
-                    googleId: decoded.sub,
-                    name: decoded.name || "Google User",
-                    email: decoded.email,
-                    picture: decoded.picture || "",
-                    role: selectedRole,
-                }),
-            });
+                    headers: {
+                        "Content-Type": "application/json",
+                    },
+
+                    body: JSON.stringify({
+                        googleId: decoded.sub,
+                        name: decoded.name || "Google User",
+                        email: decoded.email,
+                        picture: decoded.picture || "",
+                        role: selectedRole,
+                    }),
+                }
+            );
 
             const data = await response.json();
 
+            console.log("GOOGLE LOGIN STATUS:", response.status);
+            console.log("GOOGLE LOGIN RESPONSE:", data);
+
+            // =================================================
+            // BACKEND ERROR
+            // =================================================
+
             if (!response.ok) {
                 setError(
-                    data.message || "Google Sign-In failed."
+                    data.message ||
+                    "Google Sign-In failed."
                 );
                 return;
             }
 
             if (!data.user) {
-                setError("Invalid response from server.");
-                return;
-            }
-
-            // Save authenticated user
-            sessionStorage.setItem(
-                "authUser",
-                JSON.stringify(data.user)
-            );
-
-            // Save JWT if backend returns one
-            if (data.token) {
-                sessionStorage.setItem(
-                    "authToken",
-                    data.token
+                setError(
+                    "Invalid response from server."
                 );
-            }
-
-            // ==========================================
-            // ROLE BASED REDIRECTION
-            // ==========================================
-
-            if (data.user.role === "USER") {
-                navigate("/command");
                 return;
             }
 
-            if (data.user.role === "BASE_HEAD") {
+            // =================================================
+            // IMPORTANT ROLE CHECK
+            // =================================================
 
-                if (data.user.status === "PENDING") {
-                    navigate("/waiting-for-approval");
+            if (data.user.role !== selectedRole) {
+                setError(
+                    `This Google account is not registered as ${roleName}.`
+                );
+                return;
+            }
+
+            // =================================================
+            // ADMIN GOOGLE LOGIN
+            // =================================================
+
+            // =================================================
+            // ADMIN GOOGLE LOGIN
+            // =================================================
+
+            if (data.user.role === "ADMIN") {
+
+                /*
+                 * Admin Google login does NOT return
+                 * the final admin JWT.
+                 *
+                 * Backend returns a temporary
+                 * ADMIN_2FA verification token.
+                 */
+
+                if (!data.verificationToken) {
+                    setError(
+                        "Admin verification token was not received."
+                    );
                     return;
                 }
 
-                navigate("/command");
+                sessionStorage.setItem(
+                    "adminPendingAuth",
+                    JSON.stringify({
+                        user: data.user,
+
+                        // IMPORTANT:
+                        // This comes from data.verificationToken,
+                        // NOT data.token.
+                        verificationToken:
+                            data.verificationToken,
+                    })
+                );
+
+                navigate("/admin-verification");
+
                 return;
             }
 
-            if (data.user.role === "ADMIN") {
-                navigate("/command");
+            // =================================================
+            // NORMAL USER GOOGLE LOGIN
+            // =================================================
+
+            if (data.user.role === "USER") {
+
+                sessionStorage.setItem(
+                    "authUser",
+                    JSON.stringify(data.user)
+                );
+
+                if (data.token) {
+                    sessionStorage.setItem(
+                        "authToken",
+                        data.token
+                    );
+                }
+
+                navigate("/user");
+
                 return;
             }
 
-            navigate("/command");
+            // =================================================
+            // BASE HEAD GOOGLE LOGIN
+            // =================================================
+
+            if (data.user.role === "BASE_HEAD") {
+
+                /*
+                 * Pending Base Head
+                 */
+
+                if (data.user.status === "PENDING") {
+
+                    sessionStorage.setItem(
+                        "pendingLoginUser",
+                        JSON.stringify({
+                            user: data.user,
+                            token: data.token,
+                            role: data.user.role,
+                            email: data.user.email,
+                        })
+                    );
+
+                    navigate(
+                        "/waiting-for-approval"
+                    );
+
+                    return;
+                }
+
+                /*
+                 * Approved Base Head
+                 */
+
+                if (data.user.status === "APPROVED") {
+
+                    sessionStorage.setItem(
+                        "authUser",
+                        JSON.stringify(data.user)
+                    );
+
+                    if (data.token) {
+                        sessionStorage.setItem(
+                            "authToken",
+                            data.token
+                        );
+                    }
+
+                    navigate("/command");
+
+                    return;
+                }
+
+                // Rejected / other status
+                setError(
+                    "Your Base Head account is not approved."
+                );
+
+                return;
+            }
+
+            // =================================================
+            // UNKNOWN ROLE
+            // =================================================
+
+            setError(
+                "Unsupported account role."
+            );
 
         } catch (error) {
+
             console.error(
                 "Google login error:",
                 error
@@ -279,8 +535,11 @@ const Signin: React.FC = () => {
             setError(
                 "Unable to connect to authentication server."
             );
+
         } finally {
+
             setGoogleLoading(false);
+
         }
     };
 

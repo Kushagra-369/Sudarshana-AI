@@ -6,6 +6,7 @@ import User, {
   AuthProvider,
 } from "../models/user_model";
 import dotenv from "dotenv";
+import { AuthRequest } from "../middleware/auth_middleware";
 
 dotenv.config()
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -347,7 +348,12 @@ export const googleLogin = async (
   res: Response
 ) => {
   try {
-    const { googleId, name, email } = req.body;
+    const {
+      googleId,
+      name,
+      email,
+      role: selectedRole,
+    } = req.body;
 
     if (!googleId || !name || !email) {
       return res.status(400).json({
@@ -357,7 +363,8 @@ export const googleLogin = async (
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail =
+      email.toLowerCase().trim();
 
     /* -----------------------------------------
        FIND EXISTING USER
@@ -369,7 +376,7 @@ export const googleLogin = async (
 
     /* -----------------------------------------
        NEW GOOGLE USER
-       Always USER
+       NEVER CREATE ADMIN
     ----------------------------------------- */
 
     if (!user) {
@@ -378,7 +385,6 @@ export const googleLogin = async (
         email: normalizedEmail,
         googleId,
 
-        // NEVER allow Google signup to create ADMIN
         role: "USER",
 
         status: "APPROVED",
@@ -406,21 +412,112 @@ export const googleLogin = async (
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
-        message: "Your account has been disabled",
+        message:
+          "Your account has been disabled",
       });
     }
 
     if (user.status !== "APPROVED") {
       return res.status(403).json({
         success: false,
-        message: "Your account is not approved",
+        message:
+          "Your account is not approved",
         status: user.status,
       });
     }
 
     /* -----------------------------------------
-       TOKEN
+       ROLE VALIDATION
     ----------------------------------------- */
+
+    /*
+     * Frontend role is NOT trusted for
+     * authorization.
+     *
+     * Actual role comes from MongoDB.
+     */
+
+    if (
+      selectedRole &&
+      selectedRole !== user.role
+    ) {
+      return res.status(403).json({
+        success: false,
+        message:
+          `This account is registered as ${user.role}`,
+      });
+    }
+
+    /* =================================================
+       ADMIN GOOGLE LOGIN
+       ================================================= */
+
+    if (user.role === "ADMIN") {
+
+      /*
+       * Admin MUST have TOTP configured.
+       */
+
+      if (
+        !user.totpEnabled ||
+        !user.totpSecret
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Admin two-factor authentication is not configured",
+        });
+      }
+
+      /*
+       * IMPORTANT:
+       * This is NOT the final admin token.
+       *
+       * It is a short-lived token that is ONLY
+       * valid for ADMIN_2FA verification.
+       */
+
+      const verificationToken =
+        jwt.sign(
+          {
+            userId:
+              user._id.toString(),
+
+            role: "ADMIN",
+
+            purpose:
+              "ADMIN_2FA",
+          },
+          JWT_SECRET,
+          {
+            expiresIn: "5m",
+          }
+        );
+
+      return res.status(200).json({
+        success: true,
+
+        message:
+          "Admin identity verified. Two-factor authentication required.",
+
+        requiresTwoFactor: true,
+
+        verificationToken,
+
+        user: {
+          id: user._id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          baseId: user.baseId,
+        },
+      });
+    }
+
+    /* =================================================
+       NORMAL USER GOOGLE LOGIN
+       ================================================= */
 
     const token = generateToken(
       user._id.toString(),
@@ -430,7 +527,10 @@ export const googleLogin = async (
 
     return res.status(200).json({
       success: true,
-      message: "Google login successful",
+
+      message:
+        "Google login successful",
+
       token,
 
       user: {
@@ -442,13 +542,64 @@ export const googleLogin = async (
         baseId: user.baseId,
       },
     });
+
   } catch (error) {
-    console.error("Google Login Error:", error);
+
+    console.error(
+      "Google Login Error:", 
+      error
+    );
 
     return res.status(500).json({
       success: false,
-      message: "Google authentication failed",
+      message:
+        "Google authentication failed",
     });
   }
 };
 
+export const getCurrentUser = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const user = await User.findById(userId).select("-password");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      user: {
+        id: user._id,
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        authProvider: user.authProvider,
+        baseId: user.baseId,
+        isActive: user.isActive,
+      },
+    });
+  } catch (error) {
+    console.error("Get Current User Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Internal server error",
+    });
+  }
+};
