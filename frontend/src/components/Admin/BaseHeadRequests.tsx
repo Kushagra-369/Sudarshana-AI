@@ -21,11 +21,26 @@ interface BaseHeadRequest {
   id: string;
   name: string;
   email: string;
-  baseId?: string;
-  baseName?: string;
-  registrationDate: string;
-  status: "pending" | "approved" | "rejected";
+  status: "PENDING" | "APPROVED" | "REJECTED" | "SUSPENDED";
   authProvider: string;
+  createdAt: string;
+
+  base?: {
+    id: string;
+    name: string;
+    baseCode: string;
+    type: string;
+    location: string;
+    address: string;
+    status: string;
+    contactNumber?: string;
+    officialEmail?: string;
+    establishedDate?: string;
+    personnelCount?: number;
+    personnelCapacity?: number;
+    emergencyContact?: string;
+    description?: string;
+  };
 }
 
 const BaseHeadRequests: React.FC = () => {
@@ -63,79 +78,154 @@ const BaseHeadRequests: React.FC = () => {
   const fetchRequests = async () => {
     try {
       setLoading(true);
+      setError(null);
+
       const token = sessionStorage.getItem("authToken");
-      
+
       if (!token) {
         navigate("/signin");
         return;
       }
 
-      // Mock data - replace with actual API call
-      // const response = await fetch(`${APIURL}/admin/head-requests`, {
-      //   headers: {
-      //     "Authorization": `Bearer ${token}`,
-      //     "Content-Type": "application/json"
-      //   }
-      // });
-      // const data = await response.json();
-      
-      setTimeout(() => {
-        setRequests([
-          {
-            id: "req-001",
-            name: "Kushagra Chaudhary",
-            email: "kushagra@example.com",
-            baseId: "base-001",
-            baseName: "Delhi Central Base",
-            registrationDate: "2025-04-13T10:30:00Z",
-            status: "pending",
-            authProvider: "google",
+      const response = await fetch(
+        `${APIURL}/admin/head-requests`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
           },
-          {
-            id: "req-002",
-            name: "Rahul Sharma",
-            email: "rahul@example.com",
-            baseId: "base-002",
-            baseName: "North Base",
-            registrationDate: "2025-04-13T08:15:00Z",
-            status: "pending",
-            authProvider: "google",
-          },
-          {
-            id: "req-003",
-            name: "Priya Patel",
-            email: "priya@example.com",
-            baseId: "base-003",
-            baseName: "West Base",
-            registrationDate: "2025-04-12T16:45:00Z",
-            status: "pending",
-            authProvider: "google",
-          },
-          {
-            id: "req-004",
-            name: "Amit Kumar",
-            email: "amit@example.com",
-            baseId: "base-004",
-            baseName: "East Base",
-            registrationDate: "2025-04-12T14:20:00Z",
-            status: "approved",
-            authProvider: "google",
-          },
-          {
-            id: "req-005",
-            name: "Sneha Reddy",
-            email: "sneha@example.com",
-            baseId: "base-005",
-            baseName: "South Base",
-            registrationDate: "2025-04-11T11:00:00Z",
-            status: "rejected",
-            authProvider: "google",
-          },
-        ]);
-        setLoading(false);
-      }, 500);
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 401 || response.status === 403) {
+          setError(
+            data.message ||
+            "You are not authorized to view Base Head requests."
+          );
+          return;
+        }
+
+        setError(
+          data.message ||
+          "Failed to load Base Head requests."
+        );
+
+        return;
+      }
+
+      const formattedRequests: BaseHeadRequest[] =
+        (data.requests || []).map((request: any) => {
+
+          // Backend may return user details nested
+          // or directly inside request.
+          const user = request.user || request.userDetails || request;
+
+          return {
+            id: String(
+              user.id ||
+              user._id ||
+              request.id ||
+              request._id ||
+              ""
+            ),
+
+            name:
+              user.name ||
+              "Unknown",
+
+            email:
+              user.email ||
+              "No email",
+
+            status:
+              user.status ||
+              request.status ||
+              "PENDING",
+
+            authProvider:
+              user.authProvider ||
+              request.authProvider ||
+              "UNKNOWN",
+
+            createdAt:
+              user.createdAt ||
+              request.createdAt ||
+              "",
+
+            base: request.base
+              ? {
+                id: String(
+                  request.base.id ||
+                  request.base._id ||
+                  ""
+                ),
+
+                name:
+                  request.base.name ||
+                  "",
+
+                baseCode:
+                  request.base.baseCode ||
+                  "",
+
+                type:
+                  request.base.type ||
+                  "",
+
+                location:
+                  request.base.location ||
+                  "",
+
+                address:
+                  request.base.address ||
+                  "",
+
+                status:
+                  request.base.status ||
+                  "",
+
+                contactNumber:
+                  request.base.contactNumber,
+
+                officialEmail:
+                  request.base.officialEmail,
+
+                establishedDate:
+                  request.base.establishedDate,
+
+                personnelCount:
+                  request.base.personnelCount,
+
+                personnelCapacity:
+                  request.base.personnelCapacity,
+
+                emergencyContact:
+                  request.base.emergencyContact,
+
+                description:
+                  request.base.description,
+              }
+              : undefined,
+          };
+        });
+
+      setRequests(formattedRequests);
+
     } catch (err) {
-      setError("Failed to load requests");
+      console.error(
+        "Fetch Base Head Requests Error:",
+        err
+      );
+
+      setError(
+        "Unable to connect to the server."
+      );
+
+    } finally {
       setLoading(false);
     }
   };
@@ -143,27 +233,64 @@ const BaseHeadRequests: React.FC = () => {
   const handleApprove = async (id: string) => {
     try {
       setProcessingId(id);
-      const token = sessionStorage.getItem("authToken");
-      
-      // const response = await fetch(`${APIURL}/admin/head-requests/${id}/approve`, {
-      //   method: "POST",
-      //   headers: {
-      //     "Authorization": `Bearer ${token}`,
-      //     "Content-Type": "application/json"
-      //   }
-      // });
-      
-      // if (response.ok) {
-        setRequests(prev => 
-          prev.map(req => 
-            req.id === id ? { ...req, status: "approved" } : req
-          )
+
+      const token =
+        sessionStorage.getItem("authToken");
+
+      if (!token) {
+        navigate("/signin");
+        return;
+      }
+
+      const response = await fetch(
+        `${APIURL}/admin/head-requests/${id}/approve`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(
+          data.message ||
+          "Failed to approve Base Head request."
         );
-        setShowConfirmDialog(null);
-        setSelectedRequest(null);
-      // }
+        return;
+      }
+
+      // Remove request from current pending list
+      setRequests((prev) =>
+        prev.map((request) =>
+          request.id === id
+            ? {
+              ...request,
+              status: "APPROVED",
+            }
+            : request
+        )
+      );
+
+      setShowConfirmDialog(null);
+      setSelectedRequest(null);
+
+      // Refresh from database
+      await fetchRequests();
+
     } catch (err) {
-      console.error("Failed to approve request");
+      console.error(
+        "Approve Base Head Error:",
+        err
+      );
+
+      setError(
+        "Unable to approve Base Head request."
+      );
+
     } finally {
       setProcessingId(null);
     }
@@ -172,32 +299,66 @@ const BaseHeadRequests: React.FC = () => {
   const handleReject = async (id: string) => {
     try {
       setProcessingId(id);
-      const token = sessionStorage.getItem("authToken");
-      
-      // const response = await fetch(`${APIURL}/admin/head-requests/${id}/reject`, {
-      //   method: "POST",
-      //   headers: {
-      //     "Authorization": `Bearer ${token}`,
-      //     "Content-Type": "application/json"
-      //   }
-      // });
-      
-      // if (response.ok) {
-        setRequests(prev => 
-          prev.map(req => 
-            req.id === id ? { ...req, status: "rejected" } : req
-          )
+
+      const token =
+        sessionStorage.getItem("authToken");
+
+      if (!token) {
+        navigate("/signin");
+        return;
+      }
+
+      const response = await fetch(
+        `${APIURL}/admin/head-requests/${id}/reject`,
+        {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setError(
+          data.message ||
+          "Failed to reject Base Head request."
         );
-        setShowConfirmDialog(null);
-        setSelectedRequest(null);
-      // }
+        return;
+      }
+
+      setRequests((prev) =>
+        prev.map((request) =>
+          request.id === id
+            ? {
+              ...request,
+              status: "REJECTED",
+            }
+            : request
+        )
+      );
+
+      setShowConfirmDialog(null);
+      setSelectedRequest(null);
+
+      await fetchRequests();
+
     } catch (err) {
-      console.error("Failed to reject request");
+      console.error(
+        "Reject Base Head Error:",
+        err
+      );
+
+      setError(
+        "Unable to reject Base Head request."
+      );
+
     } finally {
       setProcessingId(null);
     }
   };
-
   const containerStyle: React.CSSProperties = {
     background: colors.bg,
     minHeight: "calc(100vh - 64px)",
@@ -293,9 +454,9 @@ const BaseHeadRequests: React.FC = () => {
 
   const requestCardStyle = (status: string): React.CSSProperties => {
     let borderColor = colors.border;
-    if (status === "pending") borderColor = colors.accentAmber;
-    else if (status === "approved") borderColor = colors.accentGreen;
-    else if (status === "rejected") borderColor = colors.accentRed;
+    if (status === "PENDING") borderColor = colors.accentAmber;
+    else if (status === "APPROVED") borderColor = colors.accentGreen;
+    else if (status === "REJECTED") borderColor = colors.accentRed;
     return {
       background: colors.surface,
       border: `1px solid ${borderColor}`,
@@ -319,9 +480,9 @@ const BaseHeadRequests: React.FC = () => {
   const statusBadgeStyle = (status: string): React.CSSProperties => {
     let color = colors.textSecondary;
     let bg = colors.surfaceLighter;
-    if (status === "pending") { color = colors.accentAmber; bg = `${colors.accentAmber}15`; }
-    else if (status === "approved") { color = colors.accentGreen; bg = `${colors.accentGreen}15`; }
-    else if (status === "rejected") { color = colors.accentRed; bg = `${colors.accentRed}15`; }
+    if (status === "PENDING") { color = colors.accentAmber; bg = `${colors.accentAmber}15`; }
+    else if (status === "APPROVED") { color = colors.accentGreen; bg = `${colors.accentGreen}15`; }
+    else if (status === "REJECTED") { color = colors.accentRed; bg = `${colors.accentRed}15`; }
     return {
       fontSize: "10px",
       fontWeight: 600,
@@ -400,15 +561,42 @@ const BaseHeadRequests: React.FC = () => {
     width: "100%",
   };
 
-  const filteredRequests = requests.filter(req => {
-    const matchesSearch = req.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          req.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          (req.baseName && req.baseName.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesStatus = filterStatus === "ALL" || req.status === filterStatus;
+  const filteredRequests = requests.filter((req) => {
+    const search = searchTerm.trim().toLowerCase();
+
+    const name = String(req.name ?? "").toLowerCase();
+    const email = String(req.email ?? "").toLowerCase();
+
+    const baseName = String(
+      req.base?.name ?? ""
+    ).toLowerCase();
+
+    const baseCode = String(
+      req.base?.baseCode ?? ""
+    ).toLowerCase();
+
+    const location = String(
+      req.base?.location ?? ""
+    ).toLowerCase();
+
+    const matchesSearch =
+      name.includes(search) ||
+      email.includes(search) ||
+      baseName.includes(search) ||
+      baseCode.includes(search) ||
+      location.includes(search);
+
+    const matchesStatus =
+      filterStatus === "ALL" ||
+      req.status === filterStatus;
+
     return matchesSearch && matchesStatus;
   });
 
-  const pendingCount = requests.filter(r => r.status === "pending").length;
+  const pendingCount =
+    requests.filter(
+      r => r.status === "PENDING"
+    ).length;
 
   if (loading) {
     return (
@@ -459,12 +647,33 @@ const BaseHeadRequests: React.FC = () => {
             <span>Pending: <strong style={{ color: colors.accentAmber }}>{pendingCount}</strong></span>
           </div>
           <div style={statItemStyle}>
-            <CheckCircle size={16} color={colors.accentGreen} />
-            <span>Approved: <strong style={{ color: colors.accentGreen }}>{requests.filter(r => r.status === "approved").length}</strong></span>
+            <CheckCircle
+              size={16}
+              color={colors.accentGreen}
+            />
+            <span>Approved:{" "}<strong style={{ color: colors.accentGreen, }}>{requests.filter(r => r.status === "APPROVED").length}</strong>
+            </span>
           </div>
           <div style={statItemStyle}>
-            <XCircle size={16} color={colors.accentRed} />
-            <span>Rejected: <strong style={{ color: colors.accentRed }}>{requests.filter(r => r.status === "rejected").length}</strong></span>
+            <XCircle
+              size={16}
+              color={colors.accentRed}
+            />
+
+            <span>
+              Rejected:{" "}
+              <strong
+                style={{
+                  color: colors.accentRed,
+                }}
+              >
+                {
+                  requests.filter(
+                    r => r.status === "REJECTED"
+                  ).length
+                }
+              </strong>
+            </span>
           </div>
         </div>
 
@@ -486,9 +695,10 @@ const BaseHeadRequests: React.FC = () => {
             onChange={(e) => setFilterStatus(e.target.value)}
           >
             <option value="ALL">All Status</option>
-            <option value="pending">Pending</option>
-            <option value="approved">Approved</option>
-            <option value="rejected">Rejected</option>
+            <option value="PENDING">Pending</option>
+            <option value="APPROVED">Approved</option>
+            <option value="REJECTED">Rejected</option>
+            <option value="SUSPENDED">Suspended</option>
           </select>
 
           <div style={{ fontSize: "12px", color: colors.textSecondary }}>
@@ -508,72 +718,185 @@ const BaseHeadRequests: React.FC = () => {
                     {request.email}
                   </div>
                 </div>
-                <span style={statusBadgeStyle(request.status)}>
-                  {request.status.toUpperCase()}
+                <span style={statusBadgeStyle(request.status || "PENDING")}>
+                  {(request.status || "PENDING").toUpperCase()}
                 </span>
               </div>
 
               <div style={requestDetailsStyle}>
                 <div style={detailItemStyle}>
                   <Building2 size={14} />
-                  <span>{request.baseName || "No base assigned"}</span>
+                  <span>
+                    {request.base?.name || "Base details not submitted"}
+                  </span>
                 </div>
+
                 <div style={detailItemStyle}>
                   <Mail size={14} />
-                  <span>{request.authProvider}</span>
+                  <span>
+                    {request.authProvider}
+                  </span>
                 </div>
+
                 <div style={detailItemStyle}>
                   <Calendar size={14} />
-                  <span>{new Date(request.registrationDate).toLocaleString()}</span>
+                  <span>
+                    {request.createdAt
+                      ? new Date(request.createdAt).toLocaleString()
+                      : "N/A"}
+                  </span>
                 </div>
               </div>
 
-              {request.status === "pending" && (
+              {request.status === "PENDING" && (
                 <div style={actionButtonsStyle}>
                   <button
                     style={actionButtonStyle("view")}
-                    onClick={() => setSelectedRequest(selectedRequest === request.id ? null : request.id)}
+                    onClick={() =>
+                      setSelectedRequest(
+                        selectedRequest === request.id
+                          ? null
+                          : request.id
+                      )
+                    }
                   >
                     <Eye size={14} />
                     View Details
                   </button>
+
                   <button
                     style={actionButtonStyle("approve")}
-                    onClick={() => setShowConfirmDialog({ id: request.id, action: "approve" })}
+                    onClick={() =>
+                      setShowConfirmDialog({
+                        id: request.id,
+                        action: "approve",
+                      })
+                    }
                     disabled={processingId === request.id}
                   >
                     <CheckCircle size={14} />
-                    Approve
+                    {processingId === request.id
+                      ? "Processing..."
+                      : "Approve"}
                   </button>
+
                   <button
                     style={actionButtonStyle("reject")}
-                    onClick={() => setShowConfirmDialog({ id: request.id, action: "reject" })}
+                    onClick={() =>
+                      setShowConfirmDialog({
+                        id: request.id,
+                        action: "reject",
+                      })
+                    }
                     disabled={processingId === request.id}
                   >
                     <XCircle size={14} />
-                    Reject
+                    {processingId === request.id
+                      ? "Processing..."
+                      : "Reject"}
                   </button>
                 </div>
               )}
 
-              {selectedRequest === request.id && request.status === "pending" && (
-                <div style={{
-                  marginTop: "0.75rem",
-                  padding: "0.75rem",
-                  background: colors.surfaceLighter,
-                  border: `1px solid ${colors.border}`,
-                  borderRadius: "4px",
-                }}>
-                  <div style={{ fontSize: "12px", color: colors.textSecondary }}>
-                    <strong>Additional Details:</strong>
+              {selectedRequest === request.id &&
+                request.status === "PENDING" && (
+                  <div
+                    style={{
+                      marginTop: "0.75rem",
+                      padding: "0.75rem",
+                      background: colors.surfaceLighter,
+                      border: `1px solid ${colors.border}`,
+                      borderRadius: "4px",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: colors.textSecondary,
+                      }}
+                    >
+                      <strong>Base Details:</strong>
+                    </div>
+
+                    <div
+                      style={{
+                        fontSize: "12px",
+                        color: colors.textSecondary,
+                        marginTop: "0.5rem",
+                        lineHeight: 1.8,
+                      }}
+                    >
+                      <div>
+                        <strong>Base Name:</strong>{" "}
+                        {request.base?.name || "N/A"}
+                      </div>
+
+                      <div>
+                        <strong>Base Code:</strong>{" "}
+                        {request.base?.baseCode || "N/A"}
+                      </div>
+
+                      <div>
+                        <strong>Type:</strong>{" "}
+                        {request.base?.type || "N/A"}
+                      </div>
+
+                      <div>
+                        <strong>Location:</strong>{" "}
+                        {request.base?.location || "N/A"}
+                      </div>
+
+                      <div>
+                        <strong>Address:</strong>{" "}
+                        {request.base?.address || "N/A"}
+                      </div>
+
+                      <div>
+                        <strong>Contact:</strong>{" "}
+                        {request.base?.contactNumber || "N/A"}
+                      </div>
+
+                      <div>
+                        <strong>Official Email:</strong>{" "}
+                        {request.base?.officialEmail || "N/A"}
+                      </div>
+
+                      <div>
+                        <strong>Personnel:</strong>{" "}
+                        {request.base?.personnelCount ?? 0}
+                        {request.base?.personnelCapacity
+                          ? ` / ${request.base.personnelCapacity}`
+                          : ""}
+                      </div>
+
+                      <div>
+                        <strong>Emergency Contact:</strong>{" "}
+                        {request.base?.emergencyContact || "N/A"}
+                      </div>
+
+                      <div>
+                        <strong>Registration:</strong>{" "}
+                        {request.createdAt
+                          ? new Date(
+                            request.createdAt
+                          ).toLocaleString()
+                          : "N/A"}
+                      </div>
+
+                      <div>
+                        <strong>Auth Provider:</strong>{" "}
+                        {request.authProvider}
+                      </div>
+
+                      {request.base?.description && (
+                        <div style={{ marginTop: "0.5rem" }}>
+                          <strong>Description:</strong>{" "}
+                          {request.base.description}
+                        </div>
+                      )}
+                    </div>
                   </div>
-                  <div style={{ fontSize: "12px", color: colors.textSecondary, marginTop: "0.25rem" }}>
-                    <div>Base ID: {request.baseId || "Not assigned"}</div>
-                    <div>Registration: {new Date(request.registrationDate).toLocaleString()}</div>
-                    <div>Auth Provider: {request.authProvider}</div>
-                  </div>
-                </div>
-              )}
+                )}
             </div>
           ))}
         </div>
@@ -586,8 +909,8 @@ const BaseHeadRequests: React.FC = () => {
                 {showConfirmDialog.action === "approve" ? "Approve Request" : "Reject Request"}
               </div>
               <div style={{ fontSize: "14px", color: colors.textSecondary, marginBottom: "1.5rem" }}>
-                {showConfirmDialog.action === "approve" 
-                  ? "Are you sure you want to approve this Base Head request?" 
+                {showConfirmDialog.action === "approve"
+                  ? "Are you sure you want to approve this Base Head request?"
                   : "Are you sure you want to reject this Base Head request?"}
               </div>
               <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>

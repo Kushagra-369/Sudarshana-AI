@@ -255,19 +255,137 @@ const Signin: React.FC = () => {
             // BASE HEAD LOGIN
             // =================================================
 
+            // =================================================
+            // BASE HEAD LOGIN
+            // =================================================
+
+            // =================================================
+            // BASE HEAD LOGIN
+            // =================================================
+
             if (data.user.role === "BASE_HEAD") {
 
+                // Save authenticated user
                 sessionStorage.setItem(
-                    "pendingLoginUser",
-                    JSON.stringify({
-                        user: data.user,
-                        token: data.token,
-                        role: data.user.role,
-                        email: email.trim(),
-                    })
+                    "authUser",
+                    JSON.stringify(data.user)
                 );
 
-                navigate("/otp-verification");
+                // Save JWT
+                if (data.token) {
+                    sessionStorage.setItem(
+                        "authToken",
+                        data.token
+                    );
+                }
+
+                // ---------------------------------------------
+                // REJECTED
+                // ---------------------------------------------
+
+                if (data.user.status === "REJECTED") {
+                    setError(
+                        "Your Base Head application was rejected by the administrator."
+                    );
+                    return;
+                }
+
+                // ---------------------------------------------
+                // SUSPENDED
+                // ---------------------------------------------
+
+                if (data.user.status === "SUSPENDED") {
+                    setError(
+                        "Your Base Head account has been suspended."
+                    );
+                    return;
+                }
+
+                // ---------------------------------------------
+                // APPROVED
+                // ---------------------------------------------
+
+                if (
+                    data.user.status === "APPROVED" &&
+                    data.user.baseId
+                ) {
+                    navigate("/command");
+                    return;
+                }
+
+                // ---------------------------------------------
+                // PENDING
+                // ---------------------------------------------
+
+                if (data.user.status === "PENDING") {
+
+                    try {
+
+                        const baseResponse = await fetch(
+                            `${APIURL}/base/me`,
+                            {
+                                method: "GET",
+
+                                headers: {
+                                    Authorization:
+                                        `Bearer ${data.token}`,
+                                    "Content-Type":
+                                        "application/json",
+                                },
+                            }
+                        );
+
+                        const baseData =
+                            await baseResponse.json();
+
+                        console.log(
+                            "BASE PROFILE CHECK:",
+                            baseResponse.status,
+                            baseData
+                        );
+
+                        // -----------------------------------------
+                        // BASE ALREADY SUBMITTED
+                        // -----------------------------------------
+
+                        if (
+                            baseResponse.ok &&
+                            baseData.success &&
+                            baseData.base
+                        ) {
+                            navigate(
+                                "/waiting-for-approval"
+                            );
+
+                            return;
+                        }
+
+                        // -----------------------------------------
+                        // BASE NOT SUBMITTED YET
+                        // -----------------------------------------
+
+                        navigate("/base-setup");
+
+                        return;
+
+                    } catch (error) {
+
+                        console.error(
+                            "Base profile check error:",
+                            error
+                        );
+
+                        navigate("/base-setup");
+
+                        return;
+                    }
+                }
+
+                // ---------------------------------------------
+                // FALLBACK
+                // ---------------------------------------------
+
+                navigate("/base-setup");
 
                 return;
             }
@@ -461,58 +579,117 @@ const Signin: React.FC = () => {
             // BASE HEAD GOOGLE LOGIN
             // =================================================
 
+            // =================================================
+            // BASE HEAD GOOGLE LOGIN
+            // =================================================
+
             if (data.user.role === "BASE_HEAD") {
 
-                /*
-                 * Pending Base Head
-                 */
+                // Store user
+                sessionStorage.setItem(
+                    "authUser",
+                    JSON.stringify(data.user)
+                );
+
+                // Store JWT if available
+                if (data.token) {
+                    sessionStorage.setItem(
+                        "authToken",
+                        data.token
+                    );
+                }
+
+                // ---------------------------------------------
+                // REJECTED
+                // ---------------------------------------------
+
+                if (data.user.status === "REJECTED") {
+                    setError(
+                        "Your Base Head application was rejected by the administrator."
+                    );
+
+                    return;
+                }
+
+                // ---------------------------------------------
+                // SUSPENDED
+                // ---------------------------------------------
+
+                if (data.user.status === "SUSPENDED") {
+                    setError(
+                        "Your Base Head account has been suspended."
+                    );
+
+                    return;
+                }
+
+                // ---------------------------------------------
+                // APPROVED
+                // ---------------------------------------------
+
+                if (
+                    data.user.status === "APPROVED" &&
+                    data.user.baseId
+                ) {
+                    navigate("/command");
+                    return;
+                }
+
+                // ---------------------------------------------
+                // PENDING
+                // ---------------------------------------------
 
                 if (data.user.status === "PENDING") {
-
-                    sessionStorage.setItem(
-                        "pendingLoginUser",
-                        JSON.stringify({
-                            user: data.user,
-                            token: data.token,
-                            role: data.user.role,
-                            email: data.user.email,
-                        })
-                    );
-
-                    navigate(
-                        "/waiting-for-approval"
-                    );
-
-                    return;
-                }
-
-                /*
-                 * Approved Base Head
-                 */
-
-                if (data.user.status === "APPROVED") {
-
-                    sessionStorage.setItem(
-                        "authUser",
-                        JSON.stringify(data.user)
-                    );
-
-                    if (data.token) {
-                        sessionStorage.setItem(
-                            "authToken",
-                            data.token
+                    try {
+                        const baseResponse = await fetch(
+                            `${APIURL}/base/me`,
+                            {
+                                method: "GET",
+                                headers: {
+                                    Authorization: `Bearer ${data.token}`,
+                                },
+                            }
                         );
+
+                        const baseData = await baseResponse.json();
+
+                        console.log("BASE STATUS:", baseData);
+
+                        // ==========================================
+                        // BASE ALREADY EXISTS
+                        // ==========================================
+
+                        if (
+                            baseResponse.ok &&
+                            baseData.success &&
+                            baseData.base
+                        ) {
+                            navigate("/waiting-for-approval");
+                            return;
+                        }
+
+                        // ==========================================
+                        // NO BASE PROFILE YET
+                        // ==========================================
+
+                        navigate("/base-setup");
+                        return;
+
+                    } catch (error) {
+                        console.error(
+                            "Base profile check error:",
+                            error
+                        );
+
+                        navigate("/base-setup");
+                        return;
                     }
-
-                    navigate("/command");
-
-                    return;
                 }
+                // ---------------------------------------------
+                // FALLBACK
+                // ---------------------------------------------
 
-                // Rejected / other status
-                setError(
-                    "Your Base Head account is not approved."
-                );
+                navigate("/base-setup");
 
                 return;
             }

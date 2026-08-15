@@ -12,7 +12,8 @@ import {
 // ============================================================
 
 import Navbar from "./components/Navbar/Navbar";
-
+import BaseSetup from "./components/BaseHead/BaseSetup";
+import WaitingForApproval from "./components/BaseHead/WaitingForApproval";
 import Dashboard from "./components/Dashboard/Dashboard";
 import Surveillance from "./components/Surveillance/Surveillance";
 import Threats from "./components/Threats/Threats";
@@ -101,6 +102,10 @@ function AppContent() {
     location.pathname === "/user" ||
     location.pathname.startsWith("/user_");
 
+  const isBaseHeadSetupPage =
+    location.pathname === "/base-setup" ||
+    location.pathname === "/waiting-for-approval";
+
 
   // ==========================================================
   // ADMIN PAGES
@@ -167,13 +172,15 @@ function AppContent() {
       )}
 
 
+
       {/* ======================================================
           INTERNAL / BASE HEAD NAVBAR
       ====================================================== */}
 
       {!isAuthPage &&
         !isUserPage &&
-        !isAdminPage && (
+        !isAdminPage &&
+        !isBaseHeadSetupPage && (
           <Navbar
             operatorName="Captain Singh"
             notificationCount={5}
@@ -211,6 +218,7 @@ function AppContent() {
           path="/signin"
           element={<Signin />}
         />
+
 
 
         {/* ====================================================
@@ -281,6 +289,16 @@ function AppContent() {
         {/* ====================================================
             BASE HEAD / COMMAND
         ==================================================== */}
+
+        <Route
+          path="/base-setup"
+          element={<BaseSetup />}
+        />
+
+        <Route
+          path="/waiting-for-approval"
+          element={<WaitingForApproval />}
+        />
 
         <Route
           path="/command"

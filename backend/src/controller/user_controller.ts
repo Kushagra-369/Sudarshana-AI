@@ -358,106 +358,228 @@ export const googleLogin = async (
     if (!googleId || !name || !email) {
       return res.status(400).json({
         success: false,
-        message:
-          "Google ID, name and email are required",
+        message: "Google ID, name and email are required",
       });
     }
 
-    const normalizedEmail =
-      email.toLowerCase().trim();
+    const normalizedEmail = email.toLowerCase().trim();
 
-    /* -----------------------------------------
-       FIND EXISTING USER
-    ----------------------------------------- */
+    // =====================================================
+    // VALIDATE REQUESTED ROLE
+    // =====================================================
+
+    if (
+      selectedRole &&
+      selectedRole !== "USER" &&
+      selectedRole !== "BASE_HEAD" &&
+      selectedRole !== "ADMIN"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Invalid account role",
+      });
+    }
+
+    // =====================================================
+    // FIND EXISTING ACCOUNT
+    // =====================================================
 
     let user = await User.findOne({
       email: normalizedEmail,
     });
 
-    /* -----------------------------------------
-       NEW GOOGLE USER
-       NEVER CREATE ADMIN
-    ----------------------------------------- */
+    // =====================================================
+    // NEW GOOGLE ACCOUNT
+    // =====================================================
 
     if (!user) {
+
+      // -----------------------------------------------
+      // ADMIN CANNOT BE CREATED THROUGH GOOGLE
+      // -----------------------------------------------
+
+      if (selectedRole === "ADMIN") {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Administrator accounts cannot be created through Google Sign-In.",
+        });
+      }
+
+      // -----------------------------------------------
+      // BASE HEAD
+      // -----------------------------------------------
+
+      const newRole: UserRole =
+        selectedRole === "BASE_HEAD"
+          ? "BASE_HEAD"
+          : "USER";
+
+      const newStatus =
+        newRole === "BASE_HEAD"
+          ? "PENDING"
+          : "APPROVED";
+
       user = await User.create({
         name: name.trim(),
         email: normalizedEmail,
         googleId,
 
-        role: "USER",
+        role: newRole,
 
-        status: "APPROVED",
+        status: newStatus,
+
         authProvider: "GOOGLE",
 
         isActive: true,
-      });
-    } else {
-      /* -----------------------------------------
-         UPDATE GOOGLE ID IF REQUIRED
-      ----------------------------------------- */
 
+        totpEnabled: false,
+        totpSecret: null,
+      });
+
+    } else {
+
+      // =================================================
+      // EXISTING ACCOUNT
+      // =================================================
+
+      // Add Google ID if missing
       if (!user.googleId) {
         user.googleId = googleId;
         user.authProvider = "GOOGLE";
 
         await user.save();
       }
+
+      // =================================================
+      // ROLE MUST MATCH DATABASE
+      // =================================================
+
+      if (
+        selectedRole &&
+        selectedRole !== user.role
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            `This account is registered as ${user.role}`,
+        });
+      }
     }
 
-    /* -----------------------------------------
-       ACCOUNT CHECK
-    ----------------------------------------- */
+    // =====================================================
+    // ACCOUNT ACTIVE CHECK
+    // =====================================================
 
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
-        message:
-          "Your account has been disabled",
+        message: "Your account has been disabled",
       });
     }
 
-    if (user.status !== "APPROVED") {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Your account is not approved",
-        status: user.status,
-      });
+    // =====================================================
+    // BASE HEAD STATUS
+    // =====================================================
+
+    if (user.role === "BASE_HEAD") {
+
+      // -----------------------------------------------
+      // REJECTED
+      // -----------------------------------------------
+
+      if (user.status === "REJECTED") {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Your Base Head application was rejected by the administrator.",
+          status: "REJECTED",
+        });
+      }
+
+      // -----------------------------------------------
+      // SUSPENDED
+      // -----------------------------------------------
+
+      if (user.status === "SUSPENDED") {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Your Base Head account has been suspended.",
+          status: "SUSPENDED",
+        });
+      }
+
+      // -----------------------------------------------
+      // PENDING
+      // -----------------------------------------------
+
+      if (user.status === "PENDING") {
+
+        const token = generateToken(
+          user._id.toString(),
+          user.role,
+          user.baseId?.toString()
+        );
+
+        return res.status(200).json({
+          success: true,
+
+          message:
+            "Base Head application is awaiting administrator approval.",
+
+          requiresApproval: true,
+
+          token,
+
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            baseId: user.baseId,
+          },
+        });
+      }
+
+      // -----------------------------------------------
+      // APPROVED
+      // -----------------------------------------------
+
+      if (user.status === "APPROVED") {
+
+        const token = generateToken(
+          user._id.toString(),
+          user.role,
+          user.baseId?.toString()
+        );
+
+        return res.status(200).json({
+          success: true,
+          message: "Base Head login successful",
+
+          token,
+
+          user: {
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            baseId: user.baseId,
+          },
+        });
+      }
     }
 
-    /* -----------------------------------------
-       ROLE VALIDATION
-    ----------------------------------------- */
-
-    /*
-     * Frontend role is NOT trusted for
-     * authorization.
-     *
-     * Actual role comes from MongoDB.
-     */
-
-    if (
-      selectedRole &&
-      selectedRole !== user.role
-    ) {
-      return res.status(403).json({
-        success: false,
-        message:
-          `This account is registered as ${user.role}`,
-      });
-    }
-
-    /* =================================================
-       ADMIN GOOGLE LOGIN
-       ================================================= */
+    // =====================================================
+    // ADMIN GOOGLE LOGIN
+    // =====================================================
 
     if (user.role === "ADMIN") {
 
-      /*
-       * Admin MUST have TOTP configured.
-       */
-
+      // Admin MUST have TOTP
       if (
         !user.totpEnabled ||
         !user.totpSecret
@@ -469,30 +591,18 @@ export const googleLogin = async (
         });
       }
 
-      /*
-       * IMPORTANT:
-       * This is NOT the final admin token.
-       *
-       * It is a short-lived token that is ONLY
-       * valid for ADMIN_2FA verification.
-       */
-
-      const verificationToken =
-        jwt.sign(
-          {
-            userId:
-              user._id.toString(),
-
-            role: "ADMIN",
-
-            purpose:
-              "ADMIN_2FA",
-          },
-          JWT_SECRET,
-          {
-            expiresIn: "5m",
-          }
-        );
+      // Temporary token ONLY for TOTP verification
+      const verificationToken = jwt.sign(
+        {
+          userId: user._id.toString(),
+          role: "ADMIN",
+          purpose: "ADMIN_2FA",
+        },
+        JWT_SECRET,
+        {
+          expiresIn: "5m",
+        }
+      );
 
       return res.status(200).json({
         success: true,
@@ -515,9 +625,9 @@ export const googleLogin = async (
       });
     }
 
-    /* =================================================
-       NORMAL USER GOOGLE LOGIN
-       ================================================= */
+    // =====================================================
+    // NORMAL USER GOOGLE LOGIN
+    // =====================================================
 
     const token = generateToken(
       user._id.toString(),
@@ -528,8 +638,7 @@ export const googleLogin = async (
     return res.status(200).json({
       success: true,
 
-      message:
-        "Google login successful",
+      message: "Google login successful",
 
       token,
 
@@ -546,7 +655,7 @@ export const googleLogin = async (
   } catch (error) {
 
     console.error(
-      "Google Login Error:", 
+      "Google Login Error:",
       error
     );
 

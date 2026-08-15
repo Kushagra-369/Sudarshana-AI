@@ -406,10 +406,6 @@ export const getMyBase = async (
     try {
         const userId = req.userId;
 
-        // --------------------------------------------------------
-        // AUTHENTICATION
-        // --------------------------------------------------------
-
         if (!userId) {
             return res.status(401).json({
                 success: false,
@@ -417,13 +413,7 @@ export const getMyBase = async (
             });
         }
 
-        // --------------------------------------------------------
-        // FIND USER
-        // --------------------------------------------------------
-
-        const user = await User.findById(
-            userId
-        ).select(
+        const user = await User.findById(userId).select(
             "name email role status baseId isActive"
         );
 
@@ -434,67 +424,71 @@ export const getMyBase = async (
             });
         }
 
-        // --------------------------------------------------------
-        // ROLE CHECK
-        // --------------------------------------------------------
-
+        // Only Base Head
         if (user.role !== "BASE_HEAD") {
             return res.status(403).json({
                 success: false,
-                message:
-                    "Only Base Heads can access this",
+                message: "Only Base Heads can access this",
             });
         }
 
-        // --------------------------------------------------------
-        // APPROVAL CHECK
-        // --------------------------------------------------------
-
-        if (user.status !== "APPROVED") {
+        // Suspended account
+        if (user.status === "SUSPENDED") {
             return res.status(403).json({
                 success: false,
-                message:
-                    "Your Base Head account has not been approved yet",
+                message: "Your account has been suspended",
                 status: user.status,
             });
         }
 
-        // --------------------------------------------------------
-        // BASE ASSIGNMENT CHECK
-        // --------------------------------------------------------
+        /*
+        |--------------------------------------------------------------------------
+        | FIND BASE
+        |--------------------------------------------------------------------------
+        |
+        | APPROVED:
+        |     Find using user.baseId
+        |
+        | PENDING:
+        |     Base is not assigned yet, so find using createdBy
+        |
+        */
 
-        if (!user.baseId) {
-            return res.status(404).json({
-                success: false,
-                message:
-                    "No base has been assigned to this account",
-            });
+        let base = null;
+
+        // APPROVED Base Head
+        if (user.status === "APPROVED" && user.baseId) {
+            base = await Base.findById(
+                user.baseId
+            ).populate(
+                "headId",
+                "name email"
+            );
         }
 
-        // --------------------------------------------------------
-        // FIND BASE
-        // --------------------------------------------------------
+        // PENDING Base Head
+        if (user.status === "PENDING") {
+            base = await Base.findOne({
+                createdBy: user._id,
+            }).populate(
+                "headId",
+                "name email"
+            );
+        }
 
-        const base = await Base.findById(
-            user.baseId
-        ).populate(
-            "headId",
-            "name email"
-        );
-
+        // No base submitted yet
         if (!base) {
             return res.status(404).json({
                 success: false,
-                message: "Base not found",
+                message: "No base profile found",
+                status: user.status,
             });
         }
 
-        // --------------------------------------------------------
-        // RESPONSE
-        // --------------------------------------------------------
-
         return res.status(200).json({
             success: true,
+
+            status: user.status,
 
             base,
         });
@@ -512,7 +506,6 @@ export const getMyBase = async (
         });
     }
 };
-
 
 // ============================================================
 // UPDATE MY BASE
