@@ -9,7 +9,7 @@ import { adminLogin, verifyAdminTOTP, } from "../controller/admin_auth_controlle
 import { setupAdminTOTP, confirmAdminTOTP, } from "../services/admin_auth_service";
 import { requireAdmin } from "../middleware/admin_middleware";
 import {getBaseHeadRequests,approveBaseHead,rejectBaseHead,} from "../controller/admin_controller";
-
+import {createBaseProfile,getMyBase,updateMyBase,} from "../controller/base_controller";
 // user
 router.post("/register", registerUser);
 router.post("/login", loginUser);
@@ -22,6 +22,15 @@ router.post("/admin/head-requests/:id/approve",authenticateToken,requireAdmin,ap
 router.post("/admin/head-requests/:id/reject",authenticateToken,requireAdmin,rejectBaseHead);
 router.post("/admin/login", adminLogin);
 router.post("/admin/verify-totp", verifyAdminTOTP);
+
+//basehead
+// ============================================================
+// BASE HEAD / BASE
+// ============================================================
+
+router.post("/base/setup", authenticateToken,createBaseProfile);
+router.get("/base/me",authenticateToken,getMyBase);
+router.put("/base/me",authenticateToken,updateMyBase);
 
 router.post(
   "/admin/setup-totp",
