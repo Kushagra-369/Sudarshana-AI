@@ -62,12 +62,13 @@ const Navbar: React.FC<NavbarProps> = ({
   activePage = "command",
   onNavigate,
   notificationCount = 5,
-  operatorName = "Captain Singh",
+  operatorName = "",
   isOperational = true,
 }) => {
   const [currentTime, setCurrentTime] = useState(new Date());
   const [showNotifications, setShowNotifications] = useState(false);
   const [showOperatorMenu, setShowOperatorMenu] = useState(false);
+  const [actualOperatorName, setActualOperatorName] = useState(operatorName);
   const notifRef = useRef<HTMLDivElement>(null);
   const operatorRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -94,6 +95,51 @@ const Navbar: React.FC<NavbarProps> = ({
       setCurrentTime(new Date());
     }, 1000);
     return () => clearInterval(interval);
+  }, []);
+
+  useEffect(() => {
+    const fetchCurrentUser = async () => {
+      const token = sessionStorage.getItem("authToken");
+
+      if (!token) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          "http://localhost:4321/me",
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+
+        if (data.success && data.user?.name) {
+          setActualOperatorName(data.user.name);
+
+          // Also keep sessionStorage updated
+          sessionStorage.setItem(
+            "authUser",
+            JSON.stringify(data.user)
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Failed to fetch current user:",
+          error
+        );
+      }
+    };
+
+    fetchCurrentUser();
   }, []);
 
   useEffect(() => {
@@ -305,6 +351,17 @@ const Navbar: React.FC<NavbarProps> = ({
     border: `1px solid ${colors.border}`,
   };
 
+  const handleLogout = () => {
+    sessionStorage.removeItem("authToken");
+    sessionStorage.removeItem("authUser");
+    sessionStorage.removeItem("adminPendingAuth");
+    sessionStorage.removeItem("pendingLoginUser");
+
+    setShowOperatorMenu(false);
+
+    navigate("/signin", { replace: true });
+  };
+
   const avatarStyle: React.CSSProperties = {
     width: "22px",
     height: "22px",
@@ -499,9 +556,13 @@ const Navbar: React.FC<NavbarProps> = ({
             onClick={() => setShowOperatorMenu(!showOperatorMenu)}
           >
             <div style={avatarStyle}>
-              {operatorName.charAt(0).toUpperCase()}
+              {(actualOperatorName || "User")
+                .charAt(0)
+                .toUpperCase()}
             </div>
-            <span style={operatorNameStyle}>{operatorName}</span>
+            <span style={operatorNameStyle}>
+              {actualOperatorName || "User"}
+            </span>
             <ChevronDown size={12} color={colors.textSecondary} />
             {showOperatorMenu && (
               <div style={dropdownPanelStyle}>
@@ -515,8 +576,12 @@ const Navbar: React.FC<NavbarProps> = ({
                   <Activity size={14} /> System Status
                 </button>
                 <hr style={{ border: "none", borderTop: `1px solid ${colors.border}`, margin: "0.25rem 0" }} />
-                <button style={dropdownItemStyle}>
-                  <LogOut size={14} /> Logout
+                <button
+                  style={dropdownItemStyle}
+                  onClick={handleLogout}
+                >
+                  <LogOut size={14} />
+                  Logout
                 </button>
               </div>
             )}

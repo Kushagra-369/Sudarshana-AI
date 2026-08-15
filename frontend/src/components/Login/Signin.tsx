@@ -34,8 +34,12 @@ const Signin: React.FC = () => {
     // FORM
     // =====================================================
 
+    const [name, setName] = useState("");
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
+
+    const [isRegisterMode, setIsRegisterMode] =
+        useState(false);
 
     const [showPassword, setShowPassword] = useState(false);
 
@@ -61,6 +65,25 @@ const Signin: React.FC = () => {
     const handleRoleChange = (role: LoginRole) => {
         setSelectedRole(role);
         setError("");
+    };
+
+    const handleModeChange = (
+        register: boolean
+    ) => {
+        setIsRegisterMode(register);
+        setError("");
+
+        setName("");
+        setEmail("");
+        setPassword("");
+
+        // ADMIN cannot register
+        if (
+            register &&
+            selectedRole === "ADMIN"
+        ) {
+            setSelectedRole("USER");
+        }
     };
 
     // =====================================================
@@ -203,6 +226,7 @@ const Signin: React.FC = () => {
 
                 return;
             }
+
 
             // =================================================
             // SERVER RESPONSE VALIDATION
@@ -413,6 +437,169 @@ const Signin: React.FC = () => {
 
             setLoading(false);
 
+        }
+    };
+
+    // =====================================================
+    // REGISTER NEW ACCOUNT
+    // =====================================================
+
+    const handleRegister = async (
+        e: React.FormEvent<HTMLFormElement>
+    ) => {
+        e.preventDefault();
+
+        setError("");
+
+        // =================================================
+        // VALIDATION
+        // =================================================
+
+        if (!name.trim()) {
+            setError(
+                "Please enter your full name."
+            );
+            return;
+        }
+
+        if (!email.trim()) {
+            setError(
+                "Please enter your email address."
+            );
+            return;
+        }
+
+        if (!password) {
+            setError(
+                "Please enter your password."
+            );
+            return;
+        }
+
+        if (password.length < 6) {
+            setError(
+                "Password must be at least 6 characters."
+            );
+            return;
+        }
+
+        // ADMIN CANNOT REGISTER
+        if (selectedRole === "ADMIN") {
+            setError(
+                "Administrator accounts cannot be created through registration."
+            );
+            return;
+        }
+
+        try {
+            setLoading(true);
+
+            const response = await fetch(
+                `${APIURL}/register`,
+                {
+                    method: "POST",
+
+                    headers: {
+                        "Content-Type":
+                            "application/json",
+                    },
+
+                    body: JSON.stringify({
+                        name: name.trim(),
+                        email: email.trim(),
+                        password,
+                        role: selectedRole,
+                    }),
+                }
+            );
+
+            const data =
+                await response.json();
+
+            console.log(
+                "REGISTER STATUS:",
+                response.status
+            );
+
+            console.log(
+                "REGISTER RESPONSE:",
+                data
+            );
+
+            // =================================================
+            // BACKEND ERROR
+            // =================================================
+
+            if (!response.ok) {
+                setError(
+                    data.message ||
+                    "Unable to create account."
+                );
+
+                return;
+            }
+
+            // =================================================
+            // OTP REQUIRED
+            // =================================================
+
+            if (
+                data.requiresEmailOTP
+            ) {
+                sessionStorage.setItem(
+                    "pendingOTPEmail",
+                    data.email
+                );
+
+                sessionStorage.setItem(
+                    "pendingOTPRole",
+                    data.role
+                );
+
+                sessionStorage.setItem(
+                    "pendingOTPUserId",
+                    data.userId
+                );
+
+                navigate(
+                    "/email-otp",
+                    {
+                        replace: true,
+
+                        state: {
+                            email:
+                                data.email,
+
+                            role:
+                                data.role,
+
+                            userId:
+                                data.userId,
+                        },
+                    }
+                );
+
+                return;
+            }
+
+            setError(
+                "Invalid registration response from server."
+            );
+
+        } catch (error) {
+
+            console.error(
+                "Registration error:",
+                error
+            );
+
+            setError(
+                "Unable to connect to the server. Please try again."
+            );
+
+        } finally {
+
+            setLoading(false);
         }
     };
 
@@ -880,22 +1067,23 @@ const Signin: React.FC = () => {
                             </button>
 
                             {/* ADMIN */}
-
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    handleRoleChange("ADMIN")
-                                }
-                                style={{
-                                    ...styles.roleButton,
-                                    ...(selectedRole === "ADMIN"
-                                        ? styles.roleButtonActive
-                                        : {}),
-                                }}
-                            >
-                                <KeyRound size={14} />
-                                ADMIN
-                            </button>
+                            {!isRegisterMode && (
+                                <button
+                                    type="button"
+                                    onClick={() =>
+                                        handleRoleChange("ADMIN")
+                                    }
+                                    style={{
+                                        ...styles.roleButton,
+                                        ...(selectedRole === "ADMIN"
+                                            ? styles.roleButtonActive
+                                            : {}),
+                                    }}
+                                >
+                                    <KeyRound size={14} />
+                                    ADMIN
+                                </button>
+                            )}
 
                         </div>
 
@@ -912,12 +1100,15 @@ const Signin: React.FC = () => {
                             </div>
 
                             <h2 style={styles.formTitle}>
-                                Sign in
+                                {isRegisterMode
+                                    ? "Create Account"
+                                    : "Sign in"}
                             </h2>
 
                             <p style={styles.formSubtitle}>
-                                Authenticate to access the{" "}
-                                {roleName.toLowerCase()} interface.
+                                {isRegisterMode
+                                    ? `Create a secure ${roleName.toLowerCase()} account.`
+                                    : `Authenticate to access the ${roleName.toLowerCase()} interface.`}
                             </p>
 
                         </div>
@@ -937,10 +1128,49 @@ const Signin: React.FC = () => {
                         {/* =================================================
                 LOGIN FORM
             ================================================= */}
-
-                        <form onSubmit={handleEmailLogin}>
+                        <form
+                            onSubmit={
+                                isRegisterMode
+                                    ? handleRegister
+                                    : handleEmailLogin
+                            }
+                        >
 
                             {/* EMAIL */}
+
+                            {/* NAME - REGISTER ONLY */}
+
+                            {isRegisterMode && (
+                                <div style={styles.inputGroup}>
+
+                                    <label style={styles.label}>
+                                        FULL NAME
+                                    </label>
+
+                                    <div style={styles.inputWrapper}>
+
+                                        <User
+                                            size={17}
+                                            style={styles.inputIcon}
+                                        />
+
+                                        <input
+                                            type="text"
+                                            placeholder="Enter your full name"
+                                            value={name}
+                                            onChange={(e) =>
+                                                setName(
+                                                    e.target.value
+                                                )
+                                            }
+                                            autoComplete="name"
+                                            style={styles.input}
+                                        />
+
+                                    </div>
+
+                                </div>
+                            )}
 
                             <div style={styles.inputGroup}>
 
@@ -979,13 +1209,15 @@ const Signin: React.FC = () => {
                                         PASSWORD
                                     </label>
 
-                                    <button
-                                        type="button"
-                                        style={styles.forgotButton}
-                                        onClick={handleForgotPassword}
-                                    >
-                                        Forgot password?
-                                    </button>
+                                    {!isRegisterMode && (
+                                        <button
+                                            type="button"
+                                            style={styles.forgotButton}
+                                            onClick={handleForgotPassword}
+                                        >
+                                            Forgot password?
+                                        </button>
+                                    )}
 
                                 </div>
 
@@ -1007,7 +1239,11 @@ const Signin: React.FC = () => {
                                         onChange={(e) =>
                                             setPassword(e.target.value)
                                         }
-                                        autoComplete="current-password"
+                                        autoComplete={
+                                            isRegisterMode
+                                                ? "new-password"
+                                                : "current-password"
+                                        }
                                         style={styles.input}
                                     />
 
@@ -1051,11 +1287,15 @@ const Signin: React.FC = () => {
                                             style={styles.spinner}
                                         />
 
-                                        AUTHENTICATING...
+                                        {isRegisterMode
+                                            ? "CREATING ACCOUNT..."
+                                            : "AUTHENTICATING..."}
                                     </>
                                 ) : (
                                     <>
-                                        SIGN IN
+                                        {isRegisterMode
+                                            ? "CREATE ACCOUNT"
+                                            : "SIGN IN"}
 
                                         <ArrowRight size={17} />
                                     </>
@@ -1064,6 +1304,33 @@ const Signin: React.FC = () => {
                             </button>
 
                         </form>
+
+                        <div
+                            style={{
+                                textAlign: "center",
+                                marginTop: "18px",
+                                fontSize: "10px",
+                                color: "#68756d",
+                            }}
+                        >
+                            <span>Don't have an account? </span>
+
+                            <button
+                                type="button"
+                                onClick={() => navigate("/signup")}
+                                style={{
+                                    border: "none",
+                                    background: "transparent",
+                                    color: "#6fae72",
+                                    fontSize: "10px",
+                                    fontWeight: 700,
+                                    cursor: "pointer",
+                                    padding: 0,
+                                }}
+                            >
+                                Create one
+                            </button>
+                        </div>
 
                         {/* =================================================
                 DIVIDER

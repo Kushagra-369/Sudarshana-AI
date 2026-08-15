@@ -6,11 +6,12 @@ import {
   useLocation,
   useNavigate,
 } from "react-router-dom";
-
+import Signup from "./components/Login/Signup";
+import ProtectedRoute from "./ProtectedRoute";
 // ============================================================
 // INTERNAL / BASE HEAD
 // ============================================================
-
+import OTPVerification from "./components/Login/OTPVerification";
 import Navbar from "./components/Navbar/Navbar";
 import BaseSetup from "./components/BaseHead/BaseSetup";
 import WaitingForApproval from "./components/BaseHead/WaitingForApproval";
@@ -90,6 +91,7 @@ function AppContent() {
 
   const isAuthPage =
     location.pathname === "/signin" ||
+    location.pathname === "/signup" ||
     location.pathname === "/admin-verification" ||
     location.pathname === "/admin-totp-setup";
 
@@ -168,7 +170,7 @@ function AppContent() {
       ====================================================== */}
 
       {isAdminPage && (
-        <AdminNavbar adminName="Admin" />
+        <AdminNavbar />
       )}
 
 
@@ -182,7 +184,6 @@ function AppContent() {
         !isAdminPage &&
         !isBaseHeadSetupPage && (
           <Navbar
-            operatorName="Captain Singh"
             notificationCount={5}
             isOperational={true}
           />
@@ -219,6 +220,15 @@ function AppContent() {
           element={<Signin />}
         />
 
+        <Route
+          path="/signup"
+          element={<Signup />}
+        />
+
+        <Route
+          path="/email-otp"
+          element={<OTPVerification />}
+        />
 
 
         {/* ====================================================
@@ -242,17 +252,29 @@ function AppContent() {
 
         <Route
           path="/admin"
-          element={<AdminDashboard />}
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/admin/head-requests"
-          element={<BaseHeadRequests />}
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <BaseHeadRequests />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/admin/bases"
-          element={<BasesOverview />}
+          element={
+            <ProtectedRoute allowedRoles={["ADMIN"]}>
+              <BasesOverview />
+            </ProtectedRoute>
+          }
         />
 
 
@@ -262,27 +284,47 @@ function AppContent() {
 
         <Route
           path="/user"
-          element={<UserDashboard />}
+          element={
+            <ProtectedRoute allowedRoles={["USER"]}>
+              <UserDashboard />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/user_info"
-          element={<UserInformation />}
+          element={
+            <ProtectedRoute allowedRoles={["USER"]}>
+              <UserInformation />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/user_safety"
-          element={<UserSafety />}
+          element={
+            <ProtectedRoute allowedRoles={["USER"]}>
+              <UserSafety />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/user_alert"
-          element={<UserAlerts />}
+          element={
+            <ProtectedRoute allowedRoles={["USER"]}>
+              <UserAlerts />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/user_assistant"
-          element={<UserAIAssistant />}
+          element={
+            <ProtectedRoute allowedRoles={["USER"]}>
+              <UserAIAssistant />
+            </ProtectedRoute>
+          }
         />
 
 
@@ -302,39 +344,66 @@ function AppContent() {
 
         <Route
           path="/command"
-          element={<Dashboard />}
+          element={
+            <ProtectedRoute allowedRoles={["BASE_HEAD"]}>
+              <Dashboard />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/surveillance"
-          element={<Surveillance />}
+          element={
+            <ProtectedRoute allowedRoles={["BASE_HEAD"]}>
+              <Surveillance />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/threats"
-          element={<Threats />}
+          element={
+            <ProtectedRoute allowedRoles={["BASE_HEAD"]}>
+              <Threats />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/incidents"
-          element={<Incidents />}
+          element={
+            <ProtectedRoute allowedRoles={["BASE_HEAD"]}>
+              <Incidents />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/timeline"
-          element={<Timeline />}
+          element={
+            <ProtectedRoute allowedRoles={["BASE_HEAD"]}>
+              <Timeline />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/analytics"
-          element={<Analytics />}
+          element={
+            <ProtectedRoute allowedRoles={["BASE_HEAD"]}>
+              <Analytics />
+            </ProtectedRoute>
+          }
         />
 
         <Route
           path="/assistant"
-          element={<AI_Assistant />}
+          element={
+            <ProtectedRoute allowedRoles={["BASE_HEAD"]}>
+              <AI_Assistant />
+            </ProtectedRoute>
+          }
         />
-
 
         {/* ====================================================
             UNKNOWN ROUTE

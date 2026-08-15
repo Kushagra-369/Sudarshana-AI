@@ -1,25 +1,26 @@
 import express, {
   Request,
   Response,
-} from "express";const router = express.Router();
+} from "express"; const router = express.Router();
 import User from "../models/user_model";
-import { googleLogin, loginUser, registerUser, getCurrentUser } from "../controller/user_controller"
-import { authenticateToken,AuthRequest } from "../middleware/auth_middleware";
+import { googleLogin, loginUser, registerUser, getCurrentUser,verifyEmailOTP,resendEmailOTP } from "../controller/user_controller"
+import { authenticateToken, AuthRequest } from "../middleware/auth_middleware";
 import { adminLogin, verifyAdminTOTP, } from "../controller/admin_auth_controller";
 import { setupAdminTOTP, confirmAdminTOTP, } from "../services/admin_auth_service";
 import { requireAdmin } from "../middleware/admin_middleware";
-import {getBaseHeadRequests,approveBaseHead,rejectBaseHead,} from "../controller/admin_controller";
-import {createBaseProfile,getMyBase,updateMyBase,} from "../controller/base_controller";
+import { getBaseHeadRequests, approveBaseHead, rejectBaseHead, } from "../controller/admin_controller";
+import { createBaseProfile, getMyBase, updateMyBase, } from "../controller/base_controller";
 // user
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.post("/google", googleLogin);
 router.get("/me", authenticateToken, getCurrentUser);
-
+router.post("/verify-email-otp",verifyEmailOTP);
+router.post("/resend-email-otp",resendEmailOTP);
 //admin
-router.get("/admin/head-requests",authenticateToken,requireAdmin,getBaseHeadRequests);
-router.post("/admin/head-requests/:id/approve",authenticateToken,requireAdmin,approveBaseHead);
-router.post("/admin/head-requests/:id/reject",authenticateToken,requireAdmin,rejectBaseHead);
+router.get("/admin/head-requests", authenticateToken, requireAdmin, getBaseHeadRequests);
+router.post("/admin/head-requests/:id/approve", authenticateToken, requireAdmin, approveBaseHead);
+router.post("/admin/head-requests/:id/reject", authenticateToken, requireAdmin, rejectBaseHead);
 router.post("/admin/login", adminLogin);
 router.post("/admin/verify-totp", verifyAdminTOTP);
 
@@ -28,9 +29,9 @@ router.post("/admin/verify-totp", verifyAdminTOTP);
 // BASE HEAD / BASE
 // ============================================================
 
-router.post("/base/setup", authenticateToken,createBaseProfile);
-router.get("/base/me",authenticateToken,getMyBase);
-router.put("/base/me",authenticateToken,updateMyBase);
+router.post("/base/setup", authenticateToken, createBaseProfile);
+router.get("/base/me", authenticateToken, getMyBase);
+router.put("/base/me", authenticateToken, updateMyBase);
 
 router.post(
   "/admin/setup-totp",

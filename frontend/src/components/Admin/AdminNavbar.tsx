@@ -1,12 +1,12 @@
 // src/components/Admin/AdminNavbar.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { 
-  LayoutDashboard, 
-  Users, 
-  Building2, 
-  LogOut, 
-  Menu, 
+import {
+  LayoutDashboard,
+  Users,
+  Building2,
+  LogOut,
+  Menu,
   X,
   ChevronDown
 } from "lucide-react";
@@ -20,6 +20,58 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({ adminName = "Admin" }) => {
   const location = useLocation();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [actualAdminName, setActualAdminName] =
+    useState(adminName);
+
+  useEffect(() => {
+    const fetchCurrentAdmin = async () => {
+      const token =
+        sessionStorage.getItem("authToken");
+
+      if (!token) {
+        return;
+      }
+
+      try {
+        const response = await fetch(
+          "http://localhost:4321/me",
+          {
+            method: "GET",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+          }
+        );
+
+        if (!response.ok) {
+          return;
+        }
+
+        const data = await response.json();
+
+        if (
+          data.success &&
+          data.user?.name
+        ) {
+          setActualAdminName(
+            data.user.name
+          );
+
+          sessionStorage.setItem(
+            "authUser",
+            JSON.stringify(data.user)
+          );
+        }
+      } catch (error) {
+        console.error(
+          "Failed to fetch admin details:",
+          error
+        );
+      }
+    };
+
+    fetchCurrentAdmin();
+  }, []);
 
   const colors = {
     bg: "#080D0C",
@@ -281,19 +333,23 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({ adminName = "Admin" }) => {
 
         {/* Right Section */}
         <div style={rightSectionStyle}>
-          <div 
+          <div
             style={userWrapperStyle}
             onClick={() => setIsProfileOpen(!isProfileOpen)}
           >
             <div style={avatarStyle}>
-              {adminName.charAt(0).toUpperCase()}
+              {(actualAdminName || "Admin")
+                .charAt(0)
+                .toUpperCase()}
             </div>
-            <span style={userNameStyle}>{adminName}</span>
+            <span style={userNameStyle}>
+              {actualAdminName || "Admin"}
+            </span>
             <ChevronDown size={14} color={colors.textSecondary} />
-            
+
             {isProfileOpen && (
               <div style={dropdownMenuStyle}>
-                <button 
+                <button
                   style={dropdownItemStyle}
                   onClick={handleLogout}
                   onMouseEnter={(e) => {

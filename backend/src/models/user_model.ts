@@ -13,7 +13,7 @@ export type AuthProvider = "LOCAL" | "GOOGLE";
 export interface IUser extends Document {
   name: string;
   email: string;
-
+  emailVerified: boolean;
   password?: string;
   googleId?: string;
 
@@ -95,6 +95,12 @@ const userSchema = new Schema<IUser>(
     isActive: {
       type: Boolean,
       default: true,
+    },
+
+    emailVerified: {
+      type: Boolean,
+      default: false,
+      required: true,
     },
     totpSecret: {
       type: String,
