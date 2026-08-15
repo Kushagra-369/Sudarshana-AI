@@ -17,10 +17,10 @@ interface VerifyResponse {
         email: string;
         role: "ADMIN" | "BASE_HEAD" | "USER";
         status:
-            | "PENDING"
-            | "APPROVED"
-            | "REJECTED"
-            | "SUSPENDED";
+        | "PENDING"
+        | "APPROVED"
+        | "REJECTED"
+        | "SUSPENDED";
         baseId?: string;
     };
 }
@@ -45,10 +45,10 @@ const OTPVerification: React.FC = () => {
         sessionStorage.getItem(
             "pendingOTPRole"
         ) as
-            | "ADMIN"
-            | "BASE_HEAD"
-            | "USER"
-            | null;
+        | "ADMIN"
+        | "BASE_HEAD"
+        | "USER"
+        | null;
 
     const [otp, setOtp] =
         useState("");
@@ -171,34 +171,14 @@ const OTPVerification: React.FC = () => {
                 return;
             }
 
-            if (
-                !data.success ||
-                !data.token ||
-                !data.user
-            ) {
+            if (!data.success || !data.user) {
                 setError(
+                    data.message ||
                     "Invalid authentication response."
                 );
                 return;
             }
 
-            /*
-            |--------------------------------------------------------------------------
-            | SAVE AUTHENTICATION
-            |--------------------------------------------------------------------------
-            */
-
-            sessionStorage.setItem(
-                "authToken",
-                data.token
-            );
-
-            sessionStorage.setItem(
-                "authUser",
-                JSON.stringify(
-                    data.user
-                )
-            );
 
             /*
             |--------------------------------------------------------------------------
@@ -220,32 +200,13 @@ const OTPVerification: React.FC = () => {
             |--------------------------------------------------------------------------
             */
 
-            if (
-                data.user.role ===
-                "ADMIN"
-            ) {
-
-                /*
-                 * Email OTP is only the first
-                 * authentication factor.
-                 *
-                 * Admin still needs
-                 * Authenticator/TOTP.
-                 */
+            if (data.user.role === "ADMIN") {
 
                 sessionStorage.setItem(
                     "adminPendingAuth",
                     JSON.stringify({
                         user: data.user,
-                        verificationToken:
-                            data.token,
                     })
-                );
-
-                // Don't keep final auth token
-                // before TOTP is completed.
-                sessionStorage.removeItem(
-                    "authToken"
                 );
 
                 navigate(
@@ -257,6 +218,23 @@ const OTPVerification: React.FC = () => {
 
                 return;
             }
+
+            if (!data.token) {
+                setError(
+                    "Authentication token was not returned."
+                );
+                return;
+            }
+
+            sessionStorage.setItem(
+                "authToken",
+                data.token
+            );
+
+            sessionStorage.setItem(
+                "authUser",
+                JSON.stringify(data.user)
+            );
 
             /*
             |--------------------------------------------------------------------------
@@ -709,7 +687,7 @@ const OTPVerification: React.FC = () => {
                                 "6px",
                             background:
                                 loading ||
-                                otp.length !== 6
+                                    otp.length !== 6
                                     ? "#26352D"
                                     : "#6FAF72",
                             color:
@@ -718,7 +696,7 @@ const OTPVerification: React.FC = () => {
                                 700,
                             cursor:
                                 loading ||
-                                otp.length !== 6
+                                    otp.length !== 6
                                     ? "not-allowed"
                                     : "pointer",
                         }}
@@ -769,7 +747,7 @@ const OTPVerification: React.FC = () => {
                                     : "#6FAF72",
                             cursor:
                                 countdown > 0 ||
-                                resending
+                                    resending
                                     ? "not-allowed"
                                     : "pointer",
                             fontWeight:

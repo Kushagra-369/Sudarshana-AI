@@ -18,8 +18,7 @@ import { APIURL } from "../../GlobalAPIURL";
 
 type SignupRole =
     | "USER"
-    | "BASE_HEAD"
-    | "ADMIN";
+    | "BASE_HEAD";
 
 const Signup: React.FC = () => {
 
@@ -65,9 +64,7 @@ const Signup: React.FC = () => {
     const roleName = {
         USER: "User",
         BASE_HEAD: "Base Head",
-        ADMIN: "Administrator",
     }[selectedRole];
-
     // =====================================================
     // ROLE CHANGE
     // =====================================================
@@ -560,29 +557,7 @@ const Signup: React.FC = () => {
 
                             </button>
 
-                            {/* ADMIN */}
 
-                            <button
-                                type="button"
-                                onClick={() =>
-                                    handleRoleChange(
-                                        "ADMIN"
-                                    )
-                                }
-                                style={{
-                                    ...styles.roleButton,
-                                    ...(selectedRole ===
-                                        "ADMIN"
-                                        ? styles.roleButtonActive
-                                        : {}),
-                                }}
-                            >
-
-                                <KeyRound size={14} />
-
-                                ADMIN
-
-                            </button>
 
                         </div>
 
@@ -1208,7 +1183,7 @@ const styles: Record<
     roleSelector: {
         display: "grid",
         gridTemplateColumns:
-            "1fr 1fr 1fr",
+            "1fr 1fr",
         gap: "5px",
         marginBottom: "27px",
         padding: "4px",
