@@ -87,22 +87,25 @@ export const registerUser = async (
       email.toLowerCase().trim();
 
     /* =====================================================
-       VALIDATE ROLE
+       PUBLIC REGISTRATION ROLES
+       ADMIN CANNOT BE CREATED FROM SIGNUP
     ===================================================== */
 
-    const allowedRoles: UserRole[] = [
-      "USER",
-      "BASE_HEAD",
-      "ADMIN",
-    ];
+    if (role === "ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Administrator accounts cannot be created through public registration.",
+      });
+    }
 
     const userRole: UserRole =
-      role && allowedRoles.includes(role)
-        ? role
+      role === "BASE_HEAD"
+        ? "BASE_HEAD"
         : "USER";
 
     /* =====================================================
-       CHECK EXISTING ACCOUNT
+       FIND EXISTING ACCOUNT
     ===================================================== */
 
     const existingUser =
@@ -110,19 +113,114 @@ export const registerUser = async (
         email: normalizedEmail,
       });
 
-    /*
-     * -----------------------------------------------------
-     * EXISTING ACCOUNT
-     * -----------------------------------------------------
-     */
+    /* =====================================================
+       EXISTING ACCOUNT
+    ===================================================== */
 
     if (existingUser) {
 
       /* ===================================================
-         ALREADY VERIFIED
-         =================================================== */
+         ADMIN CANNOT BE MODIFIED
+      =================================================== */
+
+      if (existingUser.role === "ADMIN") {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Administrator accounts must use administrator authentication.",
+        });
+      }
+
+      /* ===================================================
+         VERIFIED ACCOUNT
+         Handle USER <-> BASE_HEAD conversion
+      =================================================== */
 
       if (existingUser.emailVerified === true) {
+
+        /* -----------------------------------------------
+           USER → BASE_HEAD
+        ----------------------------------------------- */
+
+        if (
+          existingUser.role === "USER" &&
+          userRole === "BASE_HEAD"
+        ) {
+          existingUser.role = "BASE_HEAD";
+          existingUser.status = "PENDING";
+
+          // Do not carry any old base
+          existingUser.set("baseId", undefined);
+
+          await existingUser.save();
+
+          return res.status(200).json({
+            success: true,
+            message:
+              "Your account has been changed to Base Head. Waiting for administrator approval.",
+            role: existingUser.role,
+            status: existingUser.status,
+            requiresApproval: true,
+            requiresLogin: true,
+            user: {
+              id: existingUser._id.toString(),
+              name: existingUser.name,
+              email: existingUser.email,
+              role: existingUser.role,
+              status: existingUser.status,
+            },
+          });
+        }
+
+        /* -----------------------------------------------
+           BASE_HEAD → USER
+
+           Allowed ONLY if not APPROVED
+        ----------------------------------------------- */
+
+        if (
+          existingUser.role === "BASE_HEAD" &&
+          userRole === "USER"
+        ) {
+
+          if (
+            existingUser.status === "APPROVED"
+          ) {
+            return res.status(403).json({
+              success: false,
+              message:
+                "An approved Base Head cannot be changed to a User account.",
+            });
+          }
+
+          existingUser.role = "USER";
+          existingUser.status = "APPROVED";
+
+          // Remove Base Head association
+          existingUser.set("baseId", undefined);
+
+          await existingUser.save();
+
+          return res.status(200).json({
+            success: true,
+            message:
+              "Your account has been changed to User.",
+            role: existingUser.role,
+            status: existingUser.status,
+            requiresLogin: true,
+            user: {
+              id: existingUser._id.toString(),
+              name: existingUser.name,
+              email: existingUser.email,
+              role: existingUser.role,
+              status: existingUser.status,
+            },
+          });
+        }
+
+        /* -----------------------------------------------
+           SAME ROLE
+        ----------------------------------------------- */
 
         return res.status(409).json({
           success: false,
@@ -130,32 +228,20 @@ export const registerUser = async (
             "An account with this email already exists. Please sign in.",
           accountExists: true,
           emailVerified: true,
+          role: existingUser.role,
+          status: existingUser.status,
         });
       }
 
       /* ===================================================
-         ACCOUNT EXISTS BUT EMAIL IS NOT VERIFIED
+         UNVERIFIED ACCOUNT
 
-         Allow registration again.
-         We update the account and generate a fresh OTP.
-         =================================================== */
-
-      console.log(
-        "Unverified account found. Restarting registration:",
-        normalizedEmail
-      );
-
-      /* -----------------------------------------------
-         DELETE OLD OTP
-      ----------------------------------------------- */
+         Allow registration again and generate fresh OTP.
+      =================================================== */
 
       await EmailOTP.deleteMany({
         userId: existingUser._id,
       });
-
-      /* -----------------------------------------------
-         UPDATE ACCOUNT
-      ----------------------------------------------- */
 
       existingUser.name =
         name.trim();
@@ -183,10 +269,12 @@ export const registerUser = async (
       existingUser.emailVerified =
         false;
 
+      existingUser.set("baseId", undefined);
+
       await existingUser.save();
 
       /* -----------------------------------------------
-         GENERATE NEW OTP
+         GENERATE OTP
       ----------------------------------------------- */
 
       const otp =
@@ -200,10 +288,6 @@ export const registerUser = async (
           Date.now() +
           5 * 60 * 1000
         );
-
-      /* -----------------------------------------------
-         SAVE NEW OTP
-      ----------------------------------------------- */
 
       await EmailOTP.create({
         userId:
@@ -220,17 +304,15 @@ export const registerUser = async (
       });
 
       /* -----------------------------------------------
-         SEND NEW OTP
+         SEND OTP
       ----------------------------------------------- */
 
       try {
-
         await sendLoginOTP(
           existingUser.email,
           otp,
           existingUser.name
         );
-
       } catch (emailError) {
 
         console.error(
@@ -238,7 +320,6 @@ export const registerUser = async (
           emailError
         );
 
-        /* Remove newly created OTP */
         await EmailOTP.deleteMany({
           userId:
             existingUser._id,
@@ -251,27 +332,17 @@ export const registerUser = async (
         });
       }
 
-      /* -----------------------------------------------
-         GO TO OTP PAGE
-      ----------------------------------------------- */
-
       return res.status(200).json({
         success: true,
-
         message:
           "Your email was not verified. A new verification code has been sent.",
-
         requiresEmailOTP: true,
-
         email:
           existingUser.email,
-
         userId:
           existingUser._id.toString(),
-
         role:
           existingUser.role,
-
         status:
           existingUser.status,
       });
@@ -281,28 +352,16 @@ export const registerUser = async (
        NEW ACCOUNT
     ===================================================== */
 
-    /* =====================================================
-       ACCOUNT STATUS
-    ===================================================== */
-
     const accountStatus: AccountStatus =
       userRole === "BASE_HEAD"
         ? "PENDING"
         : "APPROVED";
-
-    /* =====================================================
-       HASH PASSWORD
-    ===================================================== */
 
     const hashedPassword =
       await bcrypt.hash(
         password,
         12
       );
-
-    /* =====================================================
-       CREATE USER
-    ===================================================== */
 
     const user =
       await User.create({
@@ -338,7 +397,7 @@ export const registerUser = async (
       });
 
     /* =====================================================
-       GENERATE EMAIL OTP
+       EMAIL OTP
     ===================================================== */
 
     const otp =
@@ -353,18 +412,10 @@ export const registerUser = async (
         5 * 60 * 1000
       );
 
-    /* =====================================================
-       REMOVE ANY OLD OTP
-    ===================================================== */
-
     await EmailOTP.deleteMany({
       userId:
         user._id,
     });
-
-    /* =====================================================
-       SAVE OTP
-    ===================================================== */
 
     await EmailOTP.create({
       userId:
@@ -382,7 +433,7 @@ export const registerUser = async (
     });
 
     /* =====================================================
-       SEND OTP EMAIL
+       SEND OTP
     ===================================================== */
 
     try {
@@ -400,18 +451,10 @@ export const registerUser = async (
         emailError
       );
 
-      /* -----------------------------------------------
-         ROLLBACK OTP
-      ----------------------------------------------- */
-
       await EmailOTP.deleteMany({
         userId:
           user._id,
       });
-
-      /* -----------------------------------------------
-         ROLLBACK USER
-      ----------------------------------------------- */
 
       await User.findByIdAndDelete(
         user._id
@@ -426,7 +469,6 @@ export const registerUser = async (
 
     /* =====================================================
        OTP REQUIRED
-       NO JWT YET
     ===================================================== */
 
     return res.status(201).json({
@@ -474,19 +516,25 @@ export const loginUser = async (
   res: Response
 ) => {
   try {
+
     const {
       email,
       password,
+      role: selectedRole,
     }: {
       email?: string;
       password?: string;
+      role?: UserRole;
     } = req.body;
 
-    /* -----------------------------------------
+    /* =====================================================
        VALIDATION
-    ----------------------------------------- */
+    ===================================================== */
 
-    if (!email?.trim() || !password) {
+    if (
+      !email?.trim() ||
+      !password
+    ) {
       return res.status(400).json({
         success: false,
         message:
@@ -494,16 +542,33 @@ export const loginUser = async (
       });
     }
 
+    /* =====================================================
+       VALIDATE ROLE
+    ===================================================== */
+
+    if (
+      selectedRole &&
+      selectedRole !== "USER" &&
+      selectedRole !== "BASE_HEAD"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message:
+          "Invalid account role",
+      });
+    }
+
     const normalizedEmail =
       email.toLowerCase().trim();
 
-    /* -----------------------------------------
+    /* =====================================================
        FIND USER
-    ----------------------------------------- */
+    ===================================================== */
 
-    const user = await User.findOne({
-      email: normalizedEmail,
-    }).select("+password");
+    const user =
+      await User.findOne({
+        email: normalizedEmail,
+      }).select("+password");
 
     if (!user) {
       return res.status(401).json({
@@ -513,9 +578,23 @@ export const loginUser = async (
       });
     }
 
-    /* -----------------------------------------
+    /* =====================================================
+       ADMIN
+       Normal /login can NEVER change ADMIN.
+    ===================================================== */
+
+    if (user.role === "ADMIN") {
+      return res.status(403).json({
+        success: false,
+        message:
+          "Administrator accounts must use administrator login.",
+        role: "ADMIN",
+      });
+    }
+
+    /* =====================================================
        ACTIVE CHECK
-    ----------------------------------------- */
+    ===================================================== */
 
     if (!user.isActive) {
       return res.status(403).json({
@@ -525,9 +604,9 @@ export const loginUser = async (
       });
     }
 
-    /* -----------------------------------------
+    /* =====================================================
        GOOGLE ACCOUNT
-    ----------------------------------------- */
+    ===================================================== */
 
     if (!user.password) {
       return res.status(400).json({
@@ -537,9 +616,9 @@ export const loginUser = async (
       });
     }
 
-    /* -----------------------------------------
-       PASSWORD CHECK
-    ----------------------------------------- */
+    /* =====================================================
+       PASSWORD
+    ===================================================== */
 
     const passwordMatch =
       await bcrypt.compare(
@@ -555,67 +634,228 @@ export const loginUser = async (
       });
     }
 
-    /* -----------------------------------------
-       SUSPENDED
-    ----------------------------------------- */
+    /* =====================================================
+       ROLE TRANSITIONS
+    ===================================================== */
 
-    if (user.status === "SUSPENDED") {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Your account has been suspended",
-      });
-    }
-
-    /* -----------------------------------------
-       REJECTED BASE HEAD
-    ----------------------------------------- */
+    /* -----------------------------------------------------
+       USER → BASE_HEAD
+    ----------------------------------------------------- */
 
     if (
-      user.role === "BASE_HEAD" &&
-      user.status === "REJECTED"
+      user.role === "USER" &&
+      selectedRole === "BASE_HEAD"
     ) {
-      return res.status(403).json({
-        success: false,
-        message:
-          "Your Base Head request has been rejected",
-        status: "REJECTED",
-      });
+
+      user.role =
+        "BASE_HEAD";
+
+      user.status =
+        "PENDING";
+
+      user.set("baseId", undefined);
+
+      await user.save();
     }
 
-    /* -----------------------------------------
-       JWT
-       EXISTING ACCOUNT = NO EMAIL OTP
-    ----------------------------------------- */
+    /* -----------------------------------------------------
+       BASE_HEAD → USER
+       ONLY IF NOT APPROVED
+    ----------------------------------------------------- */
 
-    const token = generateToken(
-      user._id.toString(),
-      user.role,
-      user.baseId?.toString()
-    );
+    else if (
+      user.role === "BASE_HEAD" &&
+      selectedRole === "USER"
+    ) {
 
-    /* -----------------------------------------
-       ROLE-BASED RESPONSE
-    ----------------------------------------- */
+      if (
+        user.status === "APPROVED"
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "An approved Base Head cannot be changed to a User account.",
+          status:
+            "APPROVED",
+        });
+      }
+
+      user.role =
+        "USER";
+
+      user.status =
+        "APPROVED";
+
+      user.set("baseId", undefined);
+
+      await user.save();
+    }
+
+    /* =====================================================
+       BASE HEAD STATUS
+    ===================================================== */
+
+    if (
+      user.role === "BASE_HEAD"
+    ) {
+
+      /* -----------------------------------------------
+         REJECTED
+      ----------------------------------------------- */
+
+      if (
+        user.status === "REJECTED"
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Your Base Head application was rejected. Select User to continue as a normal user.",
+          status:
+            "REJECTED",
+          canLoginAsUser:
+            true,
+        });
+      }
+
+      /* -----------------------------------------------
+         SUSPENDED
+      ----------------------------------------------- */
+
+      if (
+        user.status === "SUSPENDED"
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Your Base Head account is suspended. Select User to continue as a normal user.",
+          status:
+            "SUSPENDED",
+          canLoginAsUser:
+            true,
+        });
+      }
+
+      /* -----------------------------------------------
+         PENDING
+      ----------------------------------------------- */
+
+      if (
+        user.status === "PENDING"
+      ) {
+
+        const token =
+          generateToken(
+            user._id.toString(),
+            user.role,
+            user.baseId?.toString()
+          );
+
+        return res.status(200).json({
+          success: true,
+
+          message:
+            "Base Head application is awaiting administrator approval.",
+
+          requiresApproval:
+            true,
+
+          token,
+
+          user: {
+            id:
+              user._id.toString(),
+            name:
+              user.name,
+            email:
+              user.email,
+            role:
+              user.role,
+            status:
+              user.status,
+            baseId:
+              user.baseId?.toString(),
+          },
+        });
+      }
+
+      /* -----------------------------------------------
+         APPROVED
+      ----------------------------------------------- */
+
+      if (
+        user.status === "APPROVED"
+      ) {
+
+        const token =
+          generateToken(
+            user._id.toString(),
+            user.role,
+            user.baseId?.toString()
+          );
+
+        return res.status(200).json({
+          success: true,
+
+          message:
+            "Base Head login successful",
+
+          token,
+
+          user: {
+            id:
+              user._id.toString(),
+            name:
+              user.name,
+            email:
+              user.email,
+            role:
+              user.role,
+            status:
+              user.status,
+            baseId:
+              user.baseId?.toString(),
+          },
+        });
+      }
+    }
+
+    /* =====================================================
+       NORMAL USER
+    ===================================================== */
+
+    const token =
+      generateToken(
+        user._id.toString(),
+        user.role,
+        user.baseId?.toString()
+      );
 
     return res.status(200).json({
       success: true,
 
-      message: "Login successful",
+      message:
+        "Login successful",
 
       token,
 
       user: {
-        id: user._id.toString(),
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        baseId: user.baseId?.toString(),
+        id:
+          user._id.toString(),
+        name:
+          user.name,
+        email:
+          user.email,
+        role:
+          user.role,
+        status:
+          user.status,
+        baseId:
+          user.baseId?.toString(),
       },
     });
 
   } catch (error) {
+
     console.error(
       "Login User Error:",
       error
@@ -623,7 +863,8 @@ export const loginUser = async (
 
     return res.status(500).json({
       success: false,
-      message: "Internal server error",
+      message:
+        "Internal server error",
     });
   }
 };
@@ -637,6 +878,7 @@ export const googleLogin = async (
   res: Response
 ) => {
   try {
+
     const {
       googleId,
       name,
@@ -644,18 +886,28 @@ export const googleLogin = async (
       role: selectedRole,
     } = req.body;
 
-    if (!googleId || !name || !email) {
+    /* =====================================================
+       VALIDATION
+    ===================================================== */
+
+    if (
+      !googleId ||
+      !name ||
+      !email
+    ) {
       return res.status(400).json({
         success: false,
-        message: "Google ID, name and email are required",
+        message:
+          "Google ID, name and email are required",
       });
     }
 
-    const normalizedEmail = email.toLowerCase().trim();
+    const normalizedEmail =
+      email.toLowerCase().trim();
 
-    // =====================================================
-    // VALIDATE REQUESTED ROLE
-    // =====================================================
+    /* =====================================================
+       VALIDATE ROLE
+    ===================================================== */
 
     if (
       selectedRole &&
@@ -665,210 +917,190 @@ export const googleLogin = async (
     ) {
       return res.status(400).json({
         success: false,
-        message: "Invalid account role",
+        message:
+          "Invalid account role",
       });
     }
 
-    // =====================================================
-    // FIND EXISTING ACCOUNT
-    // =====================================================
+    /* =====================================================
+       FIND EXISTING ACCOUNT
+    ===================================================== */
 
-    let user = await User.findOne({
-      email: normalizedEmail,
-    });
+    let user =
+      await User.findOne({
+        email: normalizedEmail,
+      });
 
-    // =====================================================
-    // NEW GOOGLE ACCOUNT
-    // =====================================================
+    /* =====================================================
+       NEW GOOGLE ACCOUNT
+    ===================================================== */
 
     if (!user) {
-
-      // -----------------------------------------------
-      // ADMIN CANNOT BE CREATED THROUGH GOOGLE
-      // -----------------------------------------------
-
-      if (selectedRole === "ADMIN") {
-        return res.status(403).json({
-          success: false,
-          message:
-            "Administrator accounts cannot be created through Google Sign-In.",
-        });
-      }
-
-      // -----------------------------------------------
-      // BASE HEAD
-      // -----------------------------------------------
 
       const newRole: UserRole =
         selectedRole === "BASE_HEAD"
           ? "BASE_HEAD"
           : "USER";
 
-      const newStatus =
+      const newStatus: AccountStatus =
         newRole === "BASE_HEAD"
           ? "PENDING"
           : "APPROVED";
 
-      user = await User.create({
-        name: name.trim(),
-        email: normalizedEmail,
-        googleId,
+      user =
+        await User.create({
 
-        role: newRole,
+          name:
+            name.trim(),
 
-        status: newStatus,
+          email:
+            normalizedEmail,
 
-        authProvider: "GOOGLE",
+          googleId,
 
-        isActive: true,
+          role:
+            newRole,
 
-        totpEnabled: false,
-        totpSecret: null,
-      });
+          status:
+            newStatus,
+
+          authProvider:
+            "GOOGLE",
+
+          isActive:
+            true,
+
+          emailVerified:
+            true,
+
+          totpEnabled:
+            false,
+
+          totpSecret:
+            null,
+        });
 
     } else {
 
-      // =================================================
-      // EXISTING ACCOUNT
-      // =================================================
+      /* ===================================================
+         EXISTING ACCOUNT
+      =================================================== */
 
-      // Add Google ID if missing
+      /* -----------------------------------------------
+         ADMIN
+         ----------------------------------------------- */
+
+      if (
+        user.role === "ADMIN"
+      ) {
+
+        // Never allow Google role conversion
+        if (
+          selectedRole &&
+          selectedRole !== "ADMIN"
+        ) {
+          return res.status(403).json({
+            success: false,
+            message:
+              "Administrator accounts cannot be converted to another role.",
+          });
+        }
+
+      } else {
+
+        /* ---------------------------------------------
+           USER → BASE_HEAD
+        --------------------------------------------- */
+
+        if (
+          user.role === "USER" &&
+          selectedRole === "BASE_HEAD"
+        ) {
+
+          user.role =
+            "BASE_HEAD";
+
+          user.status =
+            "PENDING";
+
+          user.set("baseId", undefined);
+
+          await user.save();
+        }
+
+        /* ---------------------------------------------
+           BASE_HEAD → USER
+           ONLY NON-APPROVED
+        --------------------------------------------- */
+
+        else if (
+          user.role === "BASE_HEAD" &&
+          selectedRole === "USER"
+        ) {
+
+          if (
+            user.status === "APPROVED"
+          ) {
+            return res.status(403).json({
+              success: false,
+              message:
+                "An approved Base Head cannot be changed to a User account.",
+              status:
+                "APPROVED",
+            });
+          }
+
+          user.role =
+            "USER";
+
+          user.status =
+            "APPROVED";
+
+          user.set("baseId", undefined);
+
+          await user.save();
+        }
+      }
+
+      /* -----------------------------------------------
+         ADD GOOGLE ID IF MISSING
+      ----------------------------------------------- */
+
       if (!user.googleId) {
-        user.googleId = googleId;
-        user.authProvider = "GOOGLE";
+        user.googleId =
+          googleId;
+
+        user.authProvider =
+          "GOOGLE";
+
+        user.emailVerified =
+          true;
 
         await user.save();
       }
-
-      // =================================================
-      // ROLE MUST MATCH DATABASE
-      // =================================================
-
-      if (
-        selectedRole &&
-        selectedRole !== user.role
-      ) {
-        return res.status(403).json({
-          success: false,
-          message:
-            `This account is registered as ${user.role}`,
-        });
-      }
     }
 
-    // =====================================================
-    // ACCOUNT ACTIVE CHECK
-    // =====================================================
+    /* =====================================================
+       ACTIVE CHECK
+    ===================================================== */
 
     if (!user.isActive) {
       return res.status(403).json({
         success: false,
-        message: "Your account has been disabled",
+        message:
+          "Your account has been disabled",
       });
     }
 
-    // =====================================================
-    // BASE HEAD STATUS
-    // =====================================================
+    /* =====================================================
+       ADMIN GOOGLE LOGIN
+       ADMIN ALWAYS USES TOTP
+    ===================================================== */
 
-    if (user.role === "BASE_HEAD") {
+    if (
+      user.role === "ADMIN"
+    ) {
 
-      // -----------------------------------------------
-      // REJECTED
-      // -----------------------------------------------
-
-      if (user.status === "REJECTED") {
-        return res.status(403).json({
-          success: false,
-          message:
-            "Your Base Head application was rejected by the administrator.",
-          status: "REJECTED",
-        });
-      }
-
-      // -----------------------------------------------
-      // SUSPENDED
-      // -----------------------------------------------
-
-      if (user.status === "SUSPENDED") {
-        return res.status(403).json({
-          success: false,
-          message:
-            "Your Base Head account has been suspended.",
-          status: "SUSPENDED",
-        });
-      }
-
-      // -----------------------------------------------
-      // PENDING
-      // -----------------------------------------------
-
-      if (user.status === "PENDING") {
-
-        const token = generateToken(
-          user._id.toString(),
-          user.role,
-          user.baseId?.toString()
-        );
-
-        return res.status(200).json({
-          success: true,
-
-          message:
-            "Base Head application is awaiting administrator approval.",
-
-          requiresApproval: true,
-
-          token,
-
-          user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            status: user.status,
-            baseId: user.baseId,
-          },
-        });
-      }
-
-      // -----------------------------------------------
-      // APPROVED
-      // -----------------------------------------------
-
-      if (user.status === "APPROVED") {
-
-        const token = generateToken(
-          user._id.toString(),
-          user.role,
-          user.baseId?.toString()
-        );
-
-        return res.status(200).json({
-          success: true,
-          message: "Base Head login successful",
-
-          token,
-
-          user: {
-            id: user._id,
-            name: user.name,
-            email: user.email,
-            role: user.role,
-            status: user.status,
-            baseId: user.baseId,
-          },
-        });
-      }
-    }
-
-    // =====================================================
-    // ADMIN GOOGLE LOGIN
-    // =====================================================
-
-    if (user.role === "ADMIN") {
-
-      // Admin MUST have TOTP
       if (
         !user.totpEnabled ||
         !user.totpSecret
@@ -880,18 +1112,26 @@ export const googleLogin = async (
         });
       }
 
-      // Temporary token ONLY for TOTP verification
-      const verificationToken = jwt.sign(
-        {
-          userId: user._id.toString(),
-          role: "ADMIN",
-          purpose: "ADMIN_2FA",
-        },
-        JWT_SECRET,
-        {
-          expiresIn: "5m",
-        }
-      );
+      const verificationToken =
+        jwt.sign(
+          {
+            userId:
+              user._id.toString(),
+
+            role:
+              "ADMIN",
+
+            purpose:
+              "ADMIN_2FA",
+          },
+
+          JWT_SECRET,
+
+          {
+            expiresIn:
+              "5m",
+          }
+        );
 
       return res.status(200).json({
         success: true,
@@ -899,45 +1139,188 @@ export const googleLogin = async (
         message:
           "Admin identity verified. Two-factor authentication required.",
 
-        requiresTwoFactor: true,
+        requiresTwoFactor:
+          true,
 
         verificationToken,
 
         user: {
-          id: user._id,
-          name: user.name,
-          email: user.email,
-          role: user.role,
-          status: user.status,
-          baseId: user.baseId,
+          id:
+            user._id.toString(),
+          name:
+            user.name,
+          email:
+            user.email,
+          role:
+            user.role,
+          status:
+            user.status,
+          baseId:
+            user.baseId?.toString(),
         },
       });
     }
 
-    // =====================================================
-    // NORMAL USER GOOGLE LOGIN
-    // =====================================================
+    /* =====================================================
+       BASE HEAD
+    ===================================================== */
 
-    const token = generateToken(
-      user._id.toString(),
-      user.role,
-      user.baseId?.toString()
-    );
+    if (
+      user.role === "BASE_HEAD"
+    ) {
+
+      /* -----------------------------------------------
+         REJECTED
+      ----------------------------------------------- */
+
+      if (
+        user.status === "REJECTED"
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Your Base Head application was rejected. Select User to continue.",
+          status:
+            "REJECTED",
+          canLoginAsUser:
+            true,
+        });
+      }
+
+      /* -----------------------------------------------
+         SUSPENDED
+      ----------------------------------------------- */
+
+      if (
+        user.status === "SUSPENDED"
+      ) {
+        return res.status(403).json({
+          success: false,
+          message:
+            "Your Base Head account is suspended. Select User to continue.",
+          status:
+            "SUSPENDED",
+          canLoginAsUser:
+            true,
+        });
+      }
+
+      /* -----------------------------------------------
+         PENDING
+      ----------------------------------------------- */
+
+      if (
+        user.status === "PENDING"
+      ) {
+
+        const token =
+          generateToken(
+            user._id.toString(),
+            user.role,
+            user.baseId?.toString()
+          );
+
+        return res.status(200).json({
+          success: true,
+
+          message:
+            "Base Head application is awaiting administrator approval.",
+
+          requiresApproval:
+            true,
+
+          token,
+
+          user: {
+            id:
+              user._id.toString(),
+            name:
+              user.name,
+            email:
+              user.email,
+            role:
+              user.role,
+            status:
+              user.status,
+            baseId:
+              user.baseId?.toString(),
+          },
+        });
+      }
+
+      /* -----------------------------------------------
+         APPROVED
+      ----------------------------------------------- */
+
+      if (
+        user.status === "APPROVED"
+      ) {
+
+        const token =
+          generateToken(
+            user._id.toString(),
+            user.role,
+            user.baseId?.toString()
+          );
+
+        return res.status(200).json({
+          success: true,
+
+          message:
+            "Base Head login successful",
+
+          token,
+
+          user: {
+            id:
+              user._id.toString(),
+            name:
+              user.name,
+            email:
+              user.email,
+            role:
+              user.role,
+            status:
+              user.status,
+            baseId:
+              user.baseId?.toString(),
+          },
+        });
+      }
+    }
+
+    /* =====================================================
+       NORMAL USER GOOGLE LOGIN
+    ===================================================== */
+
+    const token =
+      generateToken(
+        user._id.toString(),
+        user.role,
+        user.baseId?.toString()
+      );
 
     return res.status(200).json({
       success: true,
 
-      message: "Google login successful",
+      message:
+        "Google login successful",
 
       token,
 
       user: {
-        id: user._id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-        status: user.status,
-        baseId: user.baseId,
+        id:
+          user._id.toString(),
+        name:
+          user.name,
+        email:
+          user.email,
+        role:
+          user.role,
+        status:
+          user.status,
+        baseId:
+          user.baseId?.toString(),
       },
     });
 

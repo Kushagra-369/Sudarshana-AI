@@ -244,23 +244,84 @@ const Signin: React.FC = () => {
             // ROLE VALIDATION
             // =================================================
 
-            if (data.user.role !== selectedRole) {
-                setError(
-                    `This account is not registered as ${roleName}.`
-                );
+            const actualRole = data.user.role;
+            const accountStatus = data.user.status;
 
-                return;
+            // =================================================
+            // USER LOGIN
+            // =================================================
+
+            if (selectedRole === "USER") {
+
+                if (actualRole === "USER") {
+                    // normal user
+                }
+
+                else if (
+                    actualRole === "BASE_HEAD" &&
+                    accountStatus !== "APPROVED"
+                ) {
+                    // Base Head is allowed to continue as User
+                }
+
+                else if (
+                    actualRole === "BASE_HEAD" &&
+                    accountStatus === "APPROVED"
+                ) {
+                    setError(
+                        "Your Base Head account is approved. Please sign in as Base Head."
+                    );
+                    return;
+                }
+
+                else {
+                    setError(
+                        "This account cannot be accessed as User."
+                    );
+                    return;
+                }
+            }
+
+            // =================================================
+            // BASE HEAD LOGIN
+            // =================================================
+
+            if (selectedRole === "BASE_HEAD") {
+
+                if (actualRole !== "BASE_HEAD") {
+                    setError(
+                        "This account is not registered as a Base Head."
+                    );
+                    return;
+                }
             }
 
             // =================================================
             // USER LOGIN
             // =================================================
 
-            if (data.user.role === "USER") {
+            if (
+                selectedRole === "USER" &&
+                (
+                    data.user.role === "USER" ||
+                    (
+                        data.user.role === "BASE_HEAD" &&
+                        data.user.status !== "APPROVED"
+                    )
+                )
+            ) {
+
+                const userSession = {
+                    ...data.user,
+
+                    // If Base Head is temporarily using USER access,
+                    // frontend treats this session as USER.
+                    accessRole: "USER",
+                };
 
                 sessionStorage.setItem(
                     "authUser",
-                    JSON.stringify(data.user)
+                    JSON.stringify(userSession)
                 );
 
                 if (data.token) {
@@ -275,17 +336,8 @@ const Signin: React.FC = () => {
                 return;
             }
 
-            // =================================================
-            // BASE HEAD LOGIN
-            // =================================================
 
-            // =================================================
-            // BASE HEAD LOGIN
-            // =================================================
 
-            // =================================================
-            // BASE HEAD LOGIN
-            // =================================================
 
             if (data.user.role === "BASE_HEAD") {
 
