@@ -13,7 +13,7 @@ import {
   hashEmailOTP,
 } from "../utils/email_otp";
 import { sendLoginOTP } from "../services/email_service";
-dotenv.config()
+dotenv.config({ quiet: true });
 const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {

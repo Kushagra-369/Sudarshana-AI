@@ -4,7 +4,7 @@ import cors from "cors";
 import mongoose from "mongoose";
 import router from "./routes/routes";
 
-dotenv.config();
+dotenv.config({ quiet: true });
 
 const app = express();
 

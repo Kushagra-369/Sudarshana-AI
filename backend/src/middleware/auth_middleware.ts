@@ -9,8 +9,7 @@ import dotenv from "dotenv";
 
 import User from "../models/user_model";
 
-dotenv.config();
-
+dotenv.config({ quiet: true });
 const JWT_SECRET = process.env.JWT_SECRET;
 
 if (!JWT_SECRET) {
