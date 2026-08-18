@@ -1,0 +1,19 @@
+{
+    "system": "SUDARSHANA-AI",
+    "model": "YOLOv8n",
+    "input": "C:\\Users\\SHRUTI\\Desktop\\Sudarshana-AI\\backend\\ai\\detection\\test.jpg",
+    "total_objects": 1,
+    "detections": [
+        {
+            "category": "Person",
+            "class": "person",
+            "confidence": 0.841,
+            "bounding_box": {
+                "x1": 133,
+                "y1": 46,
+                "x2": 370,
+                "y2": 879
+            }
+        }
+    ]
+}
