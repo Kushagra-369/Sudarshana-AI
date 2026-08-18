@@ -1,0 +1,32 @@
+{
+    "system": "SUDARSHANA-AI",
+    "model": "YOLOv8n + ByteTrack",
+    "input": "C:\\Users\\SHRUTI\\Desktop\\Sudarshana-AI\\backend\\ai\\detection\\test.jpg",
+    "total_detections": 1,
+    "detections": [
+        {
+            "track_id": 1,
+            "category": "Person",
+            "class": "person",
+            "confidence": 0.841,
+            "position": {
+                "x": 251,
+                "y": 462
+            },
+            "bounding_box": {
+                "x1": 133,
+                "y1": 46,
+                "x2": 370,
+                "y2": 879
+            },
+            "anomaly": {
+                "score": 0.0,
+                "level": "LOW"
+            },
+            "risk": {
+                "score": 63.65,
+                "level": "MEDIUM"
+            }
+        }
+    ]
+}

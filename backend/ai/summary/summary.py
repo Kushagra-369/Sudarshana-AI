@@ -1,17 +1,56 @@
+# ============================================================
+# SUDARSHANA-AI
+# SITUATION SUMMARY MODULE
+# ============================================================
+
 import json
 from pathlib import Path
 
 
-INPUT_FILE = Path(
-    "backend/runs/sudarshana/"
-    "tracking_result.json"
+# ============================================================
+# PATH CONFIGURATION
+# ============================================================
+
+CURRENT_DIR = Path(
+    __file__
+).resolve().parent
+
+# backend/
+BACKEND_DIR = CURRENT_DIR.parent.parent
+
+# Output directory
+OUTPUT_DIR = (
+    BACKEND_DIR
+    / "runs"
+    / "sudarshana"
 )
 
-OUTPUT_FILE = Path(
-    "backend/runs/sudarshana/"
-    "situation_summary.json"
+
+INPUT_FILE = (
+    OUTPUT_DIR
+    / "tracking_result.json"
 )
 
+OUTPUT_FILE = (
+    OUTPUT_DIR
+    / "situation_summary.json"
+)
+
+
+# ============================================================
+# CHECK INPUT
+# ============================================================
+
+if not INPUT_FILE.exists():
+
+    raise FileNotFoundError(
+        f"Tracking result not found: {INPUT_FILE}"
+    )
+
+
+# ============================================================
+# LOAD TRACKING DATA
+# ============================================================
 
 with open(
     INPUT_FILE,
@@ -28,63 +67,121 @@ detections = data.get(
 )
 
 
-total = len(detections)
+# ============================================================
+# STATISTICS
+# ============================================================
+
+total_objects = len(
+    detections
+)
+
 
 persons = sum(
     1
-    for d in detections
-    if d["category"] == "Person"
+    for detection in detections
+    if detection.get("category")
+    == "Person"
 )
+
 
 vehicles = sum(
     1
-    for d in detections
-    if d["category"] == "Vehicle"
+    for detection in detections
+    if detection.get("category")
+    == "Vehicle"
 )
 
+
 high_risk = [
-    d
-    for d in detections
-    if d["risk"]["level"] == "HIGH"
+    detection
+    for detection in detections
+    if detection.get("risk", {}).get("level")
+    == "HIGH"
 ]
+
 
 medium_risk = [
-    d
-    for d in detections
-    if d["risk"]["level"] == "MEDIUM"
+    detection
+    for detection in detections
+    if detection.get("risk", {}).get("level")
+    == "MEDIUM"
 ]
 
 
-# --------------------------------
+low_risk = [
+    detection
+    for detection in detections
+    if detection.get("risk", {}).get("level")
+    == "LOW"
+]
+
+
+# ============================================================
+# ANOMALY STATISTICS
+# ============================================================
+
+high_anomaly = [
+    detection
+    for detection in detections
+    if detection.get("anomaly", {}).get("level")
+    == "HIGH"
+]
+
+
+medium_anomaly = [
+    detection
+    for detection in detections
+    if detection.get("anomaly", {}).get("level")
+    == "MEDIUM"
+]
+
+
+low_anomaly = [
+    detection
+    for detection in detections
+    if detection.get("anomaly", {}).get("level")
+    == "LOW"
+]
+
+
+# ============================================================
 # OVERALL STATUS
-# --------------------------------
+# ============================================================
 
 if len(high_risk) > 0:
 
-    status = "HIGH"
+    overall_status = "HIGH"
 
 elif len(medium_risk) > 0:
 
-    status = "MEDIUM"
+    overall_status = "MEDIUM"
 
 else:
 
-    status = "LOW"
+    overall_status = "LOW"
 
 
-# --------------------------------
-# SUMMARY
-# --------------------------------
+# ============================================================
+# SITUATION SUMMARY
+# ============================================================
 
 summary_text = (
     f"SUDARSHANA-AI detected "
-    f"{total} objects. "
+    f"{total_objects} object(s). "
     f"{persons} person(s) and "
     f"{vehicles} vehicle(s) were identified. "
-    f"Overall system risk level is "
-    f"{status}."
+    f"Overall assessed risk level is "
+    f"{overall_status}. "
+    f"Anomaly analysis identified "
+    f"{len(high_anomaly)} high, "
+    f"{len(medium_anomaly)} medium, and "
+    f"{len(low_anomaly)} low anomaly event(s)."
 )
 
+
+# ============================================================
+# FINAL SUMMARY OBJECT
+# ============================================================
 
 summary = {
 
@@ -92,12 +189,12 @@ summary = {
         "SUDARSHANA-AI",
 
     "overall_status":
-        status,
+        overall_status,
 
     "statistics": {
 
         "total_objects":
-            total,
+            total_objects,
 
         "persons":
             persons,
@@ -105,11 +202,29 @@ summary = {
         "vehicles":
             vehicles,
 
-        "high_risk_events":
-            len(high_risk),
+        "risk": {
 
-        "medium_risk_events":
-            len(medium_risk)
+            "high":
+                len(high_risk),
+
+            "medium":
+                len(medium_risk),
+
+            "low":
+                len(low_risk)
+        },
+
+        "anomaly": {
+
+            "high":
+                len(high_anomaly),
+
+            "medium":
+                len(medium_anomaly),
+
+            "low":
+                len(low_anomaly)
+        }
     },
 
     "summary":
@@ -119,6 +234,10 @@ summary = {
         high_risk
 }
 
+
+# ============================================================
+# SAVE
+# ============================================================
 
 with open(
     OUTPUT_FILE,
@@ -133,29 +252,56 @@ with open(
     )
 
 
+# ============================================================
+# TERMINAL OUTPUT
+# ============================================================
+
 print()
+
+print("=" * 60)
+
 print(
-    "======================================"
+    "        SITUATION SUMMARY"
+)
+
+print("=" * 60)
+
+print()
+
+print(
+    summary_text
+)
+
+print()
+
+print(
+    f"Overall Risk : {overall_status}"
 )
 
 print(
-    "       SITUATION SUMMARY"
+    f"High Risk    : {len(high_risk)}"
 )
 
 print(
-    "======================================"
-)
-
-print(summary_text)
-
-print(
-    f"Status : {status}"
+    f"Medium Risk  : {len(medium_risk)}"
 )
 
 print(
-    f"Output : {OUTPUT_FILE}"
+    f"Low Risk     : {len(low_risk)}"
 )
 
+print()
+
 print(
-    "======================================"
+    f"Summary JSON : {OUTPUT_FILE}"
 )
+
+print()
+
+print("=" * 60)
+
+print(
+    "        SUMMARY COMPLETE"
+)
+
+print("=" * 60)

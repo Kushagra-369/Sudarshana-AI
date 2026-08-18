@@ -1,14 +1,44 @@
+# ============================================================
+# SUDARSHANA-AI
+# OBJECT TRACKING MODULE
+# ============================================================
+
 from ultralytics import YOLO
+
 from pathlib import Path
+
 import json
 import cv2
 import sys
 
 
-# Allow imports from backend/ai
-AI_DIR = Path(__file__).resolve().parent.parent
+# ============================================================
+# PATH CONFIGURATION
+# ============================================================
 
-sys.path.append(str(AI_DIR))
+CURRENT_DIR = Path(
+    __file__
+).resolve().parent
+
+# backend/ai/
+AI_DIR = CURRENT_DIR.parent
+
+# backend/
+BACKEND_DIR = AI_DIR.parent
+
+# Sudarshana-AI/
+PROJECT_ROOT = BACKEND_DIR.parent
+
+
+# ============================================================
+# IMPORT AI MODULES
+# ============================================================
+
+sys.path.insert(
+    0,
+    str(AI_DIR)
+)
+
 
 from anomaly.anomaly import (
     calculate_movement_anomaly,
@@ -20,15 +50,27 @@ from scoring.scorer import (
 )
 
 
-MODEL_PATH = "yolov8n.pt"
+# ============================================================
+# FILES
+# ============================================================
+
+MODEL_PATH = (
+    PROJECT_ROOT
+    / "yolov8n.pt"
+)
 
 INPUT_SOURCE = (
-    "backend/ai/detection/test.jpg"
+    AI_DIR
+    / "detection"
+    / "test.jpg"
 )
 
-OUTPUT_DIR = Path(
-    "backend/runs/sudarshana"
+OUTPUT_DIR = (
+    BACKEND_DIR
+    / "runs"
+    / "sudarshana"
 )
+
 
 OUTPUT_DIR.mkdir(
     parents=True,
@@ -36,49 +78,105 @@ OUTPUT_DIR.mkdir(
 )
 
 
-model = YOLO(
-    MODEL_PATH
-)
+# ============================================================
+# CHECK MODEL
+# ============================================================
+
+if not MODEL_PATH.exists():
+
+    raise FileNotFoundError(
+        f"YOLO model not found: {MODEL_PATH}"
+    )
 
 
-# --------------------------------
-# CLASSIFICATION
-# --------------------------------
+# ============================================================
+# CHECK INPUT
+# ============================================================
+
+if not INPUT_SOURCE.exists():
+
+    raise FileNotFoundError(
+        f"Input file not found: {INPUT_SOURCE}"
+    )
+
+
+# ============================================================
+# CATEGORY
+# ============================================================
 
 def get_category(class_name):
 
     if class_name == "person":
+
         return "Person"
 
-    if class_name in [
+    elif class_name in [
         "car",
         "truck",
         "bus",
         "motorcycle",
         "bicycle"
     ]:
+
         return "Vehicle"
 
     return "Other"
 
 
-# --------------------------------
-# TRACK
-# --------------------------------
+# ============================================================
+# LOAD MODEL
+# ============================================================
+
+print()
+
+print(
+    "Loading YOLO tracking model..."
+)
+
+model = YOLO(
+    str(MODEL_PATH)
+)
+
+
+# ============================================================
+# TRACKING
+# ============================================================
+
+print()
+
+print(
+    f"Tracking input: {INPUT_SOURCE}"
+)
+
 
 results = model.track(
-    source=INPUT_SOURCE,
+
+    source=str(
+        INPUT_SOURCE
+    ),
+
     persist=True,
+
     conf=0.40,
+
     tracker="bytetrack.yaml",
+
     save=False
 )
 
+
+# ============================================================
+# STORAGE
+# ============================================================
 
 detections = []
 
 previous_positions = {}
 
+
+# ============================================================
+# PROCESS RESULTS
+# ============================================================
 
 for result in results:
 
@@ -96,10 +194,15 @@ for result in results:
 
 
     if result.boxes is None:
+
         continue
 
 
     for box in result.boxes:
+
+        # --------------------------------
+        # CLASS
+        # --------------------------------
 
         class_id = int(
             box.cls[0]
@@ -108,6 +211,11 @@ for result in results:
         class_name = model.names[
             class_id
         ]
+
+
+        # --------------------------------
+        # CONFIDENCE
+        # --------------------------------
 
         confidence = float(
             box.conf[0]
@@ -139,6 +247,10 @@ for result in results:
         )
 
 
+        # --------------------------------
+        # CENTER
+        # --------------------------------
+
         center_x = int(
             (x1 + x2) / 2
         )
@@ -153,6 +265,10 @@ for result in results:
             center_y
         )
 
+
+        # --------------------------------
+        # PREVIOUS POSITION
+        # --------------------------------
 
         previous_position = (
             previous_positions.get(
@@ -199,51 +315,71 @@ for result in results:
         # --------------------------------
 
         risk = calculate_risk_score(
+
             category=category,
+
             confidence=confidence,
+
             anomaly_score=anomaly_score
         )
 
 
+        # --------------------------------
+        # DETECTION OBJECT
+        # --------------------------------
+
         detection = {
 
-            "track_id": track_id,
+            "track_id":
+                track_id,
 
-            "category": category,
+            "category":
+                category,
 
-            "class": class_name,
+            "class":
+                class_name,
 
-            "confidence": round(
-                confidence,
-                3
-            ),
+            "confidence":
+                round(
+                    confidence,
+                    3
+                ),
 
             "position": {
 
-                "x": center_x,
+                "x":
+                    center_x,
 
-                "y": center_y
+                "y":
+                    center_y
             },
 
             "bounding_box": {
 
-                "x1": x1,
+                "x1":
+                    x1,
 
-                "y1": y1,
+                "y1":
+                    y1,
 
-                "x2": x2,
+                "x2":
+                    x2,
 
-                "y2": y2
+                "y2":
+                    y2
             },
 
             "anomaly": {
 
-                "score": anomaly_score,
+                "score":
+                    anomaly_score,
 
-                "level": anomaly_level
+                "level":
+                    anomaly_level
             },
 
-            "risk": risk
+            "risk":
+                risk
         }
 
 
@@ -252,14 +388,33 @@ for result in results:
         )
 
 
-# --------------------------------
+# ============================================================
 # SAVE JSON
-# --------------------------------
+# ============================================================
 
 output_json = (
     OUTPUT_DIR
     / "tracking_result.json"
 )
+
+
+tracking_data = {
+
+    "system":
+        "SUDARSHANA-AI",
+
+    "model":
+        "YOLOv8n + ByteTrack",
+
+    "input":
+        str(INPUT_SOURCE),
+
+    "total_detections":
+        len(detections),
+
+    "detections":
+        detections
+}
 
 
 with open(
@@ -269,69 +424,67 @@ with open(
 ) as file:
 
     json.dump(
-        {
-            "system":
-                "SUDARSHANA-AI",
-
-            "total_detections":
-                len(detections),
-
-            "detections":
-                detections
-        },
-
+        tracking_data,
         file,
-
         indent=4
     )
 
 
-# --------------------------------
-# TERMINAL
-# --------------------------------
+# ============================================================
+# OUTPUT
+# ============================================================
 
 print()
+
+print("=" * 60)
+
 print(
-    "======================================"
+    "        TRACKING COMPLETE"
+)
+
+print("=" * 60)
+
+print(
+    f"Objects tracked : "
+    f"{len(detections)}"
 )
 
 print(
-    "          SUDARSHANA-AI"
+    f"Annotated image : "
+    f"{output_image}"
 )
 
 print(
-    "     AI DETECTION + TRACKING"
+    f"JSON result     : "
+    f"{output_json}"
 )
 
-print(
-    "======================================"
-)
+print("=" * 60)
 
-print(
-    f"Detections : {len(detections)}"
-)
 
-print(
-    f"Image      : {output_image}"
-)
-
-print(
-    f"JSON       : {output_json}"
-)
-
-print(
-    "======================================"
-)
-
+print()
 
 for item in detections:
 
     print(
+
         f"ID={item['track_id']} | "
+
         f"{item['category']} | "
+
         f"{item['class']} | "
-        f"Confidence={item['confidence']} | "
-        f"Anomaly={item['anomaly']['level']} | "
-        f"Risk={item['risk']['score']} "
+
+        f"Confidence="
+        f"{item['confidence']} | "
+
+        f"Anomaly="
+        f"{item['anomaly']['level']} | "
+
+        f"Risk="
+        f"{item['risk']['score']} "
         f"({item['risk']['level']})"
+
     )
+
+
+print()
