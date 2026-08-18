@@ -22,7 +22,7 @@ if (!mongoURL) {
 mongoose
   .connect(mongoURL)
   .then(() => console.log("🌐 MongoDB connected"))
-  .catch((err) => { 
+  .catch((err) => {
     console.error("MongoDB error:", err);
     process.exit(1);
   });
