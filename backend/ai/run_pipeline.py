@@ -1,68 +1,102 @@
+from pathlib import Path
 import subprocess
 import sys
 
 
-def run_file(path):
+# ============================================
+# SUDARSHANA-AI PIPELINE
+# ============================================
+
+# This file is:
+# backend/ai/run_pipeline.py
+
+AI_DIR = Path(__file__).resolve().parent
+
+
+def run_module(file_path):
 
     print()
-    print(
-        f"========== RUNNING {path} =========="
-    )
+    print("=" * 60)
+    print(f"RUNNING: {file_path.name}")
+    print("=" * 60)
 
     result = subprocess.run(
         [
             sys.executable,
-            path
+            str(file_path)
         ]
     )
 
     if result.returncode != 0:
 
-        print(
-            f"\nERROR while running {path}"
-        )
+        print()
+        print(f"ERROR: {file_path.name} failed.")
 
         sys.exit(
             result.returncode
         )
 
 
-# --------------------------------
-# 1. DETECTION
-# --------------------------------
+# ============================================
+# 1. OBJECT DETECTION
+# ============================================
 
-run_file(
-    "backend/ai/detection/detect.py"
+run_module(
+    AI_DIR / "detection" / "detect.py"
 )
 
 
-# --------------------------------
-# 2. TRACKING
-# --------------------------------
+# ============================================
+# 2. OBJECT TRACKING
+# ============================================
 
-run_file(
-    "backend/ai/tracking/tracker.py"
+run_module(
+    AI_DIR / "tracking" / "tracker.py"
 )
 
 
-# --------------------------------
-# 3. SUMMARY
-# --------------------------------
+# ============================================
+# 3. ANOMALY DETECTION
+# ============================================
 
-run_file(
-    "backend/ai/summary/summary.py"
+# Currently anomaly analysis is used
+# internally by tracker.py.
+#
+# Keeping this separate makes the architecture
+# easy to expand later.
+
+
+# ============================================
+# 4. RISK / THREAT SCORING
+# ============================================
+
+# Currently risk scoring is used
+# internally by tracker.py.
+
+
+# ============================================
+# 5. SITUATION SUMMARY
+# ============================================
+
+run_module(
+    AI_DIR / "summary" / "summary.py"
 )
 
+
+# ============================================
+# COMPLETE
+# ============================================
 
 print()
-print(
-    "======================================"
-)
+print("=" * 60)
+print("        SUDARSHANA-AI PIPELINE COMPLETE")
+print("=" * 60)
 
-print(
-    "     SUDARSHANA-AI PIPELINE DONE"
-)
-
-print(
-    "======================================"
-)
+print()
+print("Generated outputs:")
+print("✓ Object detection result")
+print("✓ Object tracking result")
+print("✓ Anomaly analysis")
+print("✓ Risk scoring")
+print("✓ Situation summary")
+print()

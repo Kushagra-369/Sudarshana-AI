@@ -4,26 +4,32 @@ import json
 import cv2
 
 
-MODEL_PATH = "yolov8n.pt"
+# ============================================================
+# SUDARSHANA-AI | OBJECT DETECTION
+# ============================================================
 
-IMAGE_PATH = (
-    "backend/ai/detection/test.jpg"
-)
+# Current file:
+# backend/ai/detection/detect.py
 
-OUTPUT_DIR = Path(
-    "backend/runs/sudarshana"
-)
+CURRENT_DIR = Path(__file__).resolve().parent
+
+IMAGE_PATH = CURRENT_DIR / "test.jpg"
+
+PROJECT_DIR = CURRENT_DIR.parent.parent.parent
+
+OUTPUT_DIR = PROJECT_DIR / "backend" / "runs" / "sudarshana"
 
 OUTPUT_DIR.mkdir(
     parents=True,
     exist_ok=True
 )
 
+MODEL_PATH = PROJECT_DIR / "yolov8n.pt"
 
-model = YOLO(
-    MODEL_PATH
-)
 
+# ============================================================
+# CATEGORY
+# ============================================================
 
 def get_category(class_name):
 
@@ -42,8 +48,50 @@ def get_category(class_name):
     return "Other"
 
 
+# ============================================================
+# CHECK INPUT
+# ============================================================
+
+if not IMAGE_PATH.exists():
+
+    print()
+    print("ERROR: Input image not found!")
+    print()
+    print(
+        f"Expected image location:"
+    )
+    print(
+        IMAGE_PATH
+    )
+    print()
+
+    raise FileNotFoundError(
+        f"Please put test.jpg inside: {CURRENT_DIR}"
+    )
+
+
+# ============================================================
+# LOAD MODEL
+# ============================================================
+
+print()
+print("Loading YOLO model...")
+
+model = YOLO(
+    str(MODEL_PATH)
+)
+
+
+# ============================================================
+# DETECTION
+# ============================================================
+
+print(
+    f"Running detection on: {IMAGE_PATH}"
+)
+
 results = model(
-    IMAGE_PATH,
+    str(IMAGE_PATH),
     conf=0.40,
     save=False
 )
@@ -52,9 +100,13 @@ results = model(
 detections = []
 
 
+# ============================================================
+# PROCESS RESULTS
+# ============================================================
+
 for result in results:
 
-    annotated = result.plot()
+    annotated_image = result.plot()
 
     output_image = (
         OUTPUT_DIR
@@ -63,8 +115,12 @@ for result in results:
 
     cv2.imwrite(
         str(output_image),
-        annotated
+        annotated_image
     )
+
+
+    if result.boxes is None:
+        continue
 
 
     for box in result.boxes:
@@ -107,20 +163,40 @@ for result in results:
             "bounding_box": {
 
                 "x1": x1,
-
                 "y1": y1,
-
                 "x2": x2,
-
                 "y2": y2
             }
         })
 
 
+# ============================================================
+# SAVE JSON
+# ============================================================
+
 output_json = (
     OUTPUT_DIR
     / "detection_result.json"
 )
+
+
+result_data = {
+
+    "system":
+        "SUDARSHANA-AI",
+
+    "model":
+        "YOLOv8n",
+
+    "input":
+        str(IMAGE_PATH),
+
+    "total_objects":
+        len(detections),
+
+    "detections":
+        detections
+}
 
 
 with open(
@@ -130,60 +206,55 @@ with open(
 ) as file:
 
     json.dump(
-        {
-            "system":
-                "SUDARSHANA-AI",
-
-            "total_objects":
-                len(detections),
-
-            "detections":
-                detections
-        },
-
+        result_data,
         file,
-
         indent=4
     )
 
 
+# ============================================================
+# TERMINAL OUTPUT
+# ============================================================
+
 print()
+print("=" * 60)
+
 print(
-    "======================================"
+    "        SUDARSHANA-AI"
 )
 
 print(
-    "          SUDARSHANA-AI"
+    "        OBJECT DETECTION"
+)
+
+print("=" * 60)
+
+print(
+    f"Objects detected : {len(detections)}"
 )
 
 print(
-    "          OBJECT DETECTION"
+    f"Input image      : {IMAGE_PATH}"
 )
 
 print(
-    "======================================"
+    f"Annotated image  : {output_image}"
 )
 
 print(
-    f"Objects : {len(detections)}"
+    f"JSON result      : {output_json}"
 )
+
+print("=" * 60)
+
 
 for detection in detections:
 
     print(
         f"{detection['category']} | "
         f"{detection['class']} | "
+        f"Confidence: "
         f"{detection['confidence']}"
     )
 
-print(
-    f"\nImage : {output_image}"
-)
-
-print(
-    f"JSON  : {output_json}"
-)
-
-print(
-    "======================================"
-)
+print()
