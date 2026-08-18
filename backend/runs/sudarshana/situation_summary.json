@@ -1,0 +1,21 @@
+{
+    "system": "SUDARSHANA-AI",
+    "overall_status": "MEDIUM",
+    "statistics": {
+        "total_objects": 1,
+        "persons": 1,
+        "vehicles": 0,
+        "risk": {
+            "high": 0,
+            "medium": 1,
+            "low": 0
+        },
+        "anomaly": {
+            "high": 0,
+            "medium": 0,
+            "low": 1
+        }
+    },
+    "summary": "SUDARSHANA-AI detected 1 object(s). 1 person(s) and 0 vehicle(s) were identified. Overall assessed risk level is MEDIUM. Anomaly analysis identified 0 high, 0 medium, and 1 low anomaly event(s).",
+    "high_risk_events": []
+}
