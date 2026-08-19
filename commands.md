@@ -8,3 +8,6 @@ python -m pip install --upgrade pip
 pip install ultralytics
 //------Install OpenCV-----------------//
 pip install opencv-python
+
+pip install fastapi uvicorn[standard]
+pip install chromadb sentence-transformers

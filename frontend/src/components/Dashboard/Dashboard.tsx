@@ -1,11 +1,13 @@
-// components/Dashboard.tsx
-import React, { useState } from "react";
-import { 
-  AlertTriangle, 
 
-  Server, 
-  Target, 
-  MapPin, 
+
+// components/Dashboard.tsx
+import React, { useState} from "react";
+import {
+  AlertTriangle,
+
+  Server,
+  Target,
+  MapPin,
   Clock,
   Shield,
   User,
@@ -484,22 +486,22 @@ const Dashboard: React.FC = () => {
   };
 
   // ---- KEYFRAMES ----
- React.useEffect(() => {
-  const style = document.createElement("style");
+  React.useEffect(() => {
+    const style = document.createElement("style");
 
-  style.textContent = `
+    style.textContent = `
     @keyframes pulse-dot {
       0%, 100% { opacity: 1; }
       50% { opacity: 0.3; }
     }
   `;
 
-  document.head.appendChild(style);
+    document.head.appendChild(style);
 
-  return () => {
-    document.head.removeChild(style);
-  };
-}, []);
+    return () => {
+      document.head.removeChild(style);
+    };
+  }, []);
 
   // ============================================================
   // RENDER
