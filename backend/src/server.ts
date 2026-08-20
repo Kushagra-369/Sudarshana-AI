@@ -18,10 +18,22 @@ if (!mongoURL) {
   console.error("❌ MONGO_URI not found in environment variables");
   process.exit(1);
 }
-
+ 
 mongoose
   .connect(mongoURL)
-  .then(() => console.log("🌐 MongoDB connected"))
+  .then(() => {
+    console.log("🌐 MongoDB connected");
+
+    console.log(
+      "🔥 Mongo Host:",
+      mongoose.connection.host
+    );
+
+    console.log(
+      "🔥 Mongo Database:",
+      mongoose.connection.name
+    );
+  })
   .catch((err) => {
     console.error("MongoDB error:", err);
     process.exit(1);

@@ -878,6 +878,9 @@ export const googleLogin = async (
   res: Response
 ) => {
   try {
+    console.log("\n========================================");
+    console.log("🔥 GOOGLE LOGIN REQUEST RECEIVED");
+    console.log("========================================");
 
     const {
       googleId,
@@ -886,15 +889,20 @@ export const googleLogin = async (
       role: selectedRole,
     } = req.body;
 
+    console.log("📦 Google Request Body:", {
+      googleId: googleId ? "RECEIVED" : "MISSING",
+      name,
+      email,
+      selectedRole,
+    });
+
     /* =====================================================
        VALIDATION
     ===================================================== */
 
-    if (
-      !googleId ||
-      !name ||
-      !email
-    ) {
+    if (!googleId || !name || !email) {
+      console.log("❌ Google validation failed");
+
       return res.status(400).json({
         success: false,
         message:
@@ -904,6 +912,11 @@ export const googleLogin = async (
 
     const normalizedEmail =
       email.toLowerCase().trim();
+
+    console.log(
+      "📧 Normalized Email:",
+      normalizedEmail
+    );
 
     /* =====================================================
        VALIDATE ROLE
@@ -915,10 +928,14 @@ export const googleLogin = async (
       selectedRole !== "BASE_HEAD" &&
       selectedRole !== "ADMIN"
     ) {
+      console.log(
+        "❌ Invalid role:",
+        selectedRole
+      );
+
       return res.status(400).json({
         success: false,
-        message:
-          "Invalid account role",
+        message: "Invalid account role",
       });
     }
 
@@ -926,16 +943,40 @@ export const googleLogin = async (
        FIND EXISTING ACCOUNT
     ===================================================== */
 
-    let user =
-      await User.findOne({
-        email: normalizedEmail,
-      });
+    console.log(
+      "🔍 Searching MongoDB for existing user..."
+    );
+
+    let user = await User.findOne({
+      email: normalizedEmail,
+    });
+
+    console.log(
+      "🔎 Existing User:",
+      user
+        ? {
+            id: user._id.toString(),
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            authProvider: user.authProvider,
+            hasGoogleId: !!user.googleId,
+          }
+        : "NO USER FOUND"
+    );
 
     /* =====================================================
        NEW GOOGLE ACCOUNT
     ===================================================== */
 
     if (!user) {
+      console.log(
+        "🆕 No existing account found."
+      );
+
+      console.log(
+        "📝 Creating new Google account..."
+      );
 
       const newRole: UserRole =
         selectedRole === "BASE_HEAD"
@@ -947,136 +988,185 @@ export const googleLogin = async (
           ? "PENDING"
           : "APPROVED";
 
-      user =
-        await User.create({
+      console.log("👤 New Role:", newRole);
+      console.log("📊 New Status:", newStatus);
 
-          name:
-            name.trim(),
+      user = await User.create({
+        name: name.trim(),
 
-          email:
-            normalizedEmail,
+        email: normalizedEmail,
 
-          googleId,
+        googleId,
 
-          role:
-            newRole,
+        role: newRole,
 
-          status:
-            newStatus,
+        status: newStatus,
 
-          authProvider:
-            "GOOGLE",
+        authProvider: "GOOGLE",
 
-          isActive:
-            true,
+        isActive: true,
 
-          emailVerified:
-            true,
+        emailVerified: true,
 
-          totpEnabled:
-            false,
+        totpEnabled: false,
 
-          totpSecret:
-            null,
-        });
+        totpSecret: null,
+      });
 
-    } else {
+      console.log(
+        "✅ GOOGLE USER CREATED SUCCESSFULLY"
+      );
 
-      /* ===================================================
-         EXISTING ACCOUNT
-      =================================================== */
+      console.log("🆔 MongoDB User ID:", user._id);
+      console.log("📧 Email:", user.email);
+      console.log("👤 Role:", user.role);
+      console.log("🔐 Auth Provider:", user.authProvider);
+    }
+
+    /* =====================================================
+       EXISTING ACCOUNT
+    ===================================================== */
+
+    else {
+      console.log(
+        "♻️ Existing account found. Updating/checking account..."
+      );
 
       /* -----------------------------------------------
          ADMIN
-         ----------------------------------------------- */
+      ----------------------------------------------- */
 
-      if (
-        user.role === "ADMIN"
-      ) {
+      if (user.role === "ADMIN") {
+        console.log(
+          "👑 Existing account is ADMIN"
+        );
 
-        // Never allow Google role conversion
         if (
           selectedRole &&
           selectedRole !== "ADMIN"
         ) {
+          console.log(
+            "❌ Attempted ADMIN role conversion"
+          );
+
           return res.status(403).json({
             success: false,
             message:
               "Administrator accounts cannot be converted to another role.",
           });
         }
-
-      } else {
-
-        /* ---------------------------------------------
-           USER → BASE_HEAD
-        --------------------------------------------- */
-
-        if (
-          user.role === "USER" &&
-          selectedRole === "BASE_HEAD"
-        ) {
-
-          user.role =
-            "BASE_HEAD";
-
-          user.status =
-            "PENDING";
-
-          user.set("baseId", undefined);
-
-          await user.save();
-        }
-
-        /* ---------------------------------------------
-           BASE_HEAD → USER
-           ONLY NON-APPROVED
-        --------------------------------------------- */
-
-        else if (
-          user.role === "BASE_HEAD" &&
-          selectedRole === "USER"
-        ) {
-
-          if (
-            user.status === "APPROVED"
-          ) {
-            return res.status(403).json({
-              success: false,
-              message:
-                "An approved Base Head cannot be changed to a User account.",
-              status:
-                "APPROVED",
-            });
-          }
-
-          user.role =
-            "USER";
-
-          user.status =
-            "APPROVED";
-
-          user.set("baseId", undefined);
-
-          await user.save();
-        }
       }
 
       /* -----------------------------------------------
-         ADD GOOGLE ID IF MISSING
+         USER → BASE_HEAD
       ----------------------------------------------- */
 
-      if (!user.googleId) {
-        user.googleId =
-          googleId;
+      else if (
+        user.role === "USER" &&
+        selectedRole === "BASE_HEAD"
+      ) {
+        console.log(
+          "🔄 Converting USER → BASE_HEAD"
+        );
 
-        user.authProvider =
-          "GOOGLE";
+        user.role = "BASE_HEAD";
 
-        user.emailVerified =
-          true;
+        user.status = "PENDING";
+
+        user.set("baseId", undefined);
 
         await user.save();
+
+        console.log(
+          "✅ USER → BASE_HEAD saved to MongoDB"
+        );
+      }
+
+      /* -----------------------------------------------
+         BASE_HEAD → USER
+         ONLY NON-APPROVED
+      ----------------------------------------------- */
+
+      else if (
+        user.role === "BASE_HEAD" &&
+        selectedRole === "USER"
+      ) {
+        console.log(
+          "🔄 BASE_HEAD → USER requested"
+        );
+
+        if (user.status === "APPROVED") {
+          console.log(
+            "❌ Approved Base Head cannot become User"
+          );
+
+          return res.status(403).json({
+            success: false,
+            message:
+              "An approved Base Head cannot be changed to a User account.",
+            status: "APPROVED",
+          });
+        }
+
+        user.role = "USER";
+
+        user.status = "APPROVED";
+
+        user.set("baseId", undefined);
+
+        await user.save();
+
+        console.log(
+          "✅ BASE_HEAD → USER saved to MongoDB"
+        );
+      }
+
+      /* -----------------------------------------------
+         UPDATE GOOGLE INFORMATION
+      ----------------------------------------------- */
+
+      let googleDataChanged = false;
+
+      if (!user.googleId) {
+        console.log(
+          "➕ Google ID missing. Adding Google ID..."
+        );
+
+        user.googleId = googleId;
+
+        googleDataChanged = true;
+      }
+
+      if (user.authProvider !== "GOOGLE") {
+        console.log(
+          "➕ Updating authProvider → GOOGLE"
+        );
+
+        user.authProvider = "GOOGLE";
+
+        googleDataChanged = true;
+      }
+
+      if (!user.emailVerified) {
+        console.log(
+          "➕ Marking email as verified"
+        );
+
+        user.emailVerified = true;
+
+        googleDataChanged = true;
+      }
+
+      if (googleDataChanged) {
+        await user.save();
+
+        console.log(
+          "✅ Existing Google account updated in MongoDB"
+        );
+      } else {
+        console.log(
+          "ℹ️ No MongoDB update required for existing user"
+        );
       }
     }
 
@@ -1084,7 +1174,15 @@ export const googleLogin = async (
        ACTIVE CHECK
     ===================================================== */
 
+    console.log(
+      "🔐 Checking account active status..."
+    );
+
     if (!user.isActive) {
+      console.log(
+        "❌ Account is disabled"
+      );
+
       return res.status(403).json({
         success: false,
         message:
@@ -1094,17 +1192,21 @@ export const googleLogin = async (
 
     /* =====================================================
        ADMIN GOOGLE LOGIN
-       ADMIN ALWAYS USES TOTP
     ===================================================== */
 
-    if (
-      user.role === "ADMIN"
-    ) {
+    if (user.role === "ADMIN") {
+      console.log(
+        "👑 ADMIN Google login"
+      );
 
       if (
         !user.totpEnabled ||
         !user.totpSecret
       ) {
+        console.log(
+          "❌ Admin TOTP not configured"
+        );
+
         return res.status(403).json({
           success: false,
           message:
@@ -1112,26 +1214,21 @@ export const googleLogin = async (
         });
       }
 
-      const verificationToken =
-        jwt.sign(
-          {
-            userId:
-              user._id.toString(),
+      const verificationToken = jwt.sign(
+        {
+          userId: user._id.toString(),
+          role: "ADMIN",
+          purpose: "ADMIN_2FA",
+        },
+        JWT_SECRET,
+        {
+          expiresIn: "5m",
+        }
+      );
 
-            role:
-              "ADMIN",
-
-            purpose:
-              "ADMIN_2FA",
-          },
-
-          JWT_SECRET,
-
-          {
-            expiresIn:
-              "5m",
-          }
-        );
+      console.log(
+        "✅ Admin Google identity verified"
+      );
 
       return res.status(200).json({
         success: true,
@@ -1139,24 +1236,17 @@ export const googleLogin = async (
         message:
           "Admin identity verified. Two-factor authentication required.",
 
-        requiresTwoFactor:
-          true,
+        requiresTwoFactor: true,
 
         verificationToken,
 
         user: {
-          id:
-            user._id.toString(),
-          name:
-            user.name,
-          email:
-            user.email,
-          role:
-            user.role,
-          status:
-            user.status,
-          baseId:
-            user.baseId?.toString(),
+          id: user._id.toString(),
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          baseId: user.baseId?.toString(),
         },
       });
     }
@@ -1165,25 +1255,26 @@ export const googleLogin = async (
        BASE HEAD
     ===================================================== */
 
-    if (
-      user.role === "BASE_HEAD"
-    ) {
+    if (user.role === "BASE_HEAD") {
+      console.log(
+        "🏢 BASE_HEAD Google login"
+      );
 
       /* -----------------------------------------------
          REJECTED
       ----------------------------------------------- */
 
-      if (
-        user.status === "REJECTED"
-      ) {
+      if (user.status === "REJECTED") {
+        console.log(
+          "❌ Base Head account rejected"
+        );
+
         return res.status(403).json({
           success: false,
           message:
             "Your Base Head application was rejected. Select User to continue.",
-          status:
-            "REJECTED",
-          canLoginAsUser:
-            true,
+          status: "REJECTED",
+          canLoginAsUser: true,
         });
       }
 
@@ -1191,17 +1282,17 @@ export const googleLogin = async (
          SUSPENDED
       ----------------------------------------------- */
 
-      if (
-        user.status === "SUSPENDED"
-      ) {
+      if (user.status === "SUSPENDED") {
+        console.log(
+          "❌ Base Head account suspended"
+        );
+
         return res.status(403).json({
           success: false,
           message:
             "Your Base Head account is suspended. Select User to continue.",
-          status:
-            "SUSPENDED",
-          canLoginAsUser:
-            true,
+          status: "SUSPENDED",
+          canLoginAsUser: true,
         });
       }
 
@@ -1209,16 +1300,16 @@ export const googleLogin = async (
          PENDING
       ----------------------------------------------- */
 
-      if (
-        user.status === "PENDING"
-      ) {
+      if (user.status === "PENDING") {
+        console.log(
+          "⏳ Base Head account pending approval"
+        );
 
-        const token =
-          generateToken(
-            user._id.toString(),
-            user.role,
-            user.baseId?.toString()
-          );
+        const token = generateToken(
+          user._id.toString(),
+          user.role,
+          user.baseId?.toString()
+        );
 
         return res.status(200).json({
           success: true,
@@ -1226,24 +1317,17 @@ export const googleLogin = async (
           message:
             "Base Head application is awaiting administrator approval.",
 
-          requiresApproval:
-            true,
+          requiresApproval: true,
 
           token,
 
           user: {
-            id:
-              user._id.toString(),
-            name:
-              user.name,
-            email:
-              user.email,
-            role:
-              user.role,
-            status:
-              user.status,
-            baseId:
-              user.baseId?.toString(),
+            id: user._id.toString(),
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            baseId: user.baseId?.toString(),
           },
         });
       }
@@ -1252,16 +1336,16 @@ export const googleLogin = async (
          APPROVED
       ----------------------------------------------- */
 
-      if (
-        user.status === "APPROVED"
-      ) {
+      if (user.status === "APPROVED") {
+        console.log(
+          "✅ Base Head account approved"
+        );
 
-        const token =
-          generateToken(
-            user._id.toString(),
-            user.role,
-            user.baseId?.toString()
-          );
+        const token = generateToken(
+          user._id.toString(),
+          user.role,
+          user.baseId?.toString()
+        );
 
         return res.status(200).json({
           success: true,
@@ -1272,18 +1356,12 @@ export const googleLogin = async (
           token,
 
           user: {
-            id:
-              user._id.toString(),
-            name:
-              user.name,
-            email:
-              user.email,
-            role:
-              user.role,
-            status:
-              user.status,
-            baseId:
-              user.baseId?.toString(),
+            id: user._id.toString(),
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            status: user.status,
+            baseId: user.baseId?.toString(),
           },
         });
       }
@@ -1293,12 +1371,25 @@ export const googleLogin = async (
        NORMAL USER GOOGLE LOGIN
     ===================================================== */
 
-    const token =
-      generateToken(
-        user._id.toString(),
-        user.role,
-        user.baseId?.toString()
-      );
+    console.log(
+      "👤 NORMAL USER Google login"
+    );
+
+    const token = generateToken(
+      user._id.toString(),
+      user.role,
+      user.baseId?.toString()
+    );
+
+    console.log(
+      "🎉 GOOGLE LOGIN SUCCESS"
+    );
+
+    console.log("🆔 User ID:", user._id.toString());
+    console.log("📧 Email:", user.email);
+    console.log("👤 Role:", user.role);
+
+    console.log("========================================\n");
 
     return res.status(200).json({
       success: true,
@@ -1309,32 +1400,42 @@ export const googleLogin = async (
       token,
 
       user: {
-        id:
-          user._id.toString(),
-        name:
-          user.name,
-        email:
-          user.email,
-        role:
-          user.role,
-        status:
-          user.status,
-        baseId:
-          user.baseId?.toString(),
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        baseId: user.baseId?.toString(),
       },
     });
 
-  } catch (error) {
+  } catch (error: any) {
+    console.error(
+      "\n========================================"
+    );
 
     console.error(
-      "Google Login Error:",
-      error
+      "❌ GOOGLE LOGIN ERROR"
+    );
+
+    console.error(
+      "========================================"
+    );
+
+    console.error(error);
+
+    console.error(
+      "========================================\n"
     );
 
     return res.status(500).json({
       success: false,
       message:
         "Google authentication failed",
+      error:
+        process.env.NODE_ENV === "development"
+          ? error?.message
+          : undefined,
     });
   }
 };

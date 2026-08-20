@@ -10,7 +10,7 @@ import { setupAdminTOTP, confirmAdminTOTP, } from "../services/admin_auth_servic
 import { requireAdmin } from "../middleware/admin_middleware";
 import { getBaseHeadRequests, approveBaseHead, rejectBaseHead, } from "../controller/admin_controller";
 import { createBaseProfile, getMyBase, updateMyBase, } from "../controller/base_controller";
-// user
+// user 
 router.post("/register", registerUser);
 router.post("/login", loginUser);
 router.post("/google", googleLogin);
