@@ -1,36 +1,37 @@
 # ============================================================
 # SUDARSHANA-AI
-# VIDEO SURVEILLANCE PIPELINE
+# VIDEO SURVEILLANCE + OBJECT TRACKING + TRAJECTORY
 # ============================================================
 
 from pathlib import Path
 import json
 import cv2
 import math
+import sys
 
 from ultralytics import YOLO
 
-from scoring.scorer import calculate_risk_score
-
 
 # ============================================================
-# PATHS
+# MAKE AI MODULES IMPORTABLE
 # ============================================================
 
 CURRENT_DIR = Path(__file__).resolve().parent
-
 AI_DIR = CURRENT_DIR.parent
-
 BACKEND_DIR = AI_DIR.parent
-
 PROJECT_ROOT = BACKEND_DIR.parent
+
+if str(AI_DIR) not in sys.path:
+    sys.path.insert(0, str(AI_DIR))
+
+
+from scoring.scorer import calculate_risk_score
 
 
 # ============================================================
 # INPUT VIDEO
 # ============================================================
 
-# First test with people.mp4
 VIDEO_PATH = (
     AI_DIR
     / "detection"
@@ -38,17 +39,8 @@ VIDEO_PATH = (
 )
 
 
-# For car video, simply change the line above to:
-#
-# VIDEO_PATH = (
-#     AI_DIR
-#     / "detection"
-#     / "cars.mp4"
-# )
-
-
 # ============================================================
-# OUTPUT DIRECTORY
+# OUTPUT
 # ============================================================
 
 OUTPUT_DIR = (
@@ -96,34 +88,23 @@ if not VIDEO_PATH.exists():
 
 
 # ============================================================
-# LOAD MODEL
+# LOAD YOLO
 # ============================================================
 
 print()
 
 print("=" * 60)
-
-print(
-    "        SUDARSHANA-AI"
-)
-
-print(
-    "        VIDEO SURVEILLANCE"
-)
-
+print("        SUDARSHANA-AI")
+print("        VIDEO SURVEILLANCE")
 print("=" * 60)
 
 print()
 
-print(
-    "Loading YOLO model..."
-)
-
+print("Loading YOLO model...")
 
 model = YOLO(
     str(MODEL_PATH)
 )
-
 
 print(
     f"Input video: {VIDEO_PATH}"
@@ -131,7 +112,7 @@ print(
 
 
 # ============================================================
-# VIDEO INPUT
+# OPEN VIDEO
 # ============================================================
 
 cap = cv2.VideoCapture(
@@ -170,18 +151,16 @@ total_frames = int(
 
 
 if fps <= 0:
-
     fps = 25.0
 
 
 # ============================================================
-# VIDEO OUTPUT
+# VIDEO WRITER
 # ============================================================
 
 fourcc = cv2.VideoWriter_fourcc(
     *"mp4v"
 )
-
 
 writer = cv2.VideoWriter(
 
@@ -205,21 +184,34 @@ if not writer.isOpened():
 
 
 # ============================================================
-# TRACK HISTORY
+# TRACK DATA
 # ============================================================
+
+# Complete trajectory for every object.
+#
+# Example:
+#
+# track_history[1] =
+# [
+#     (500, 300),
+#     (510, 305),
+#     (525, 315)
+# ]
 
 track_history = {}
 
 
+# Final information about every track
+
 track_results = {}
 
 
+# ============================================================
+# FRAME LOOP
+# ============================================================
+
 frame_number = 0
 
-
-# ============================================================
-# MAIN LOOP
-# ============================================================
 
 while True:
 
@@ -227,7 +219,6 @@ while True:
 
 
     if not success:
-
         break
 
 
@@ -235,7 +226,7 @@ while True:
 
 
     # ========================================================
-    # YOLO TRACKING
+    # YOLO + BYTETRACK
     # ========================================================
 
     results = model.track(
@@ -257,6 +248,10 @@ while True:
 
     annotated_frame = frame.copy()
 
+
+    # ========================================================
+    # DETECTIONS
+    # ========================================================
 
     if result.boxes is not None:
 
@@ -320,17 +315,18 @@ while True:
             # TRACK ID
             # ------------------------------------------------
 
-            if boxes.id is not None:
+            if boxes.id is None:
 
-                track_id = int(
-                    boxes.id[i]
-                )
+                # No reliable tracker ID.
+                # Skip this object instead of inventing
+                # an ID.
 
-            else:
+                continue
 
-                track_id = (
-                    i + 1
-                )
+
+            track_id = int(
+                boxes.id[i]
+            )
 
 
             # ------------------------------------------------
@@ -365,51 +361,106 @@ while True:
 
 
             # =================================================
-            # MOVEMENT ANALYSIS
+            # TRAJECTORY
             # =================================================
 
-            previous_position = (
-                track_history
-                .get(track_id)
-            )
+            if track_id not in track_history:
 
-
-            movement_distance = 0.0
-
-
-            if previous_position is not None:
-
-                dx = (
-                    current_position[0]
-                    - previous_position[0]
-                )
-
-                dy = (
-                    current_position[1]
-                    - previous_position[1]
-                )
-
-                movement_distance = math.sqrt(
-                    dx * dx + dy * dy
-                )
+                track_history[
+                    track_id
+                ] = []
 
 
             track_history[
                 track_id
-            ] = current_position
+            ].append(
+                current_position
+            )
+
+
+            # Keep trajectory reasonably sized
+            # for long videos.
+
+            if len(
+                track_history[track_id]
+            ) > 1000:
+
+                track_history[
+                    track_id
+                ] = track_history[
+                    track_id
+                ][-1000:]
 
 
             # =================================================
-            # DEMONSTRATION ANOMALY
+            # MOVEMENT
             # =================================================
 
-            # This is a simple prototype movement
-            # deviation indicator.
-            #
-            # It does NOT determine intent or threat.
-            #
-            # Higher frame-to-frame displacement
-            # produces a higher anomaly score.
+            movement_distance = 0.0
+
+
+            trajectory = (
+                track_history[
+                    track_id
+                ]
+            )
+
+
+            if len(trajectory) >= 2:
+
+                previous_position = (
+                    trajectory[-2]
+                )
+
+                dx = (
+                    center_x
+                    - previous_position[0]
+                )
+
+                dy = (
+                    center_y
+                    - previous_position[1]
+                )
+
+                movement_distance = math.sqrt(
+                    dx * dx +
+                    dy * dy
+                )
+
+
+            # =================================================
+            # TOTAL TRAVELLED DISTANCE
+            # =================================================
+
+            total_distance = 0.0
+
+
+            if len(trajectory) >= 2:
+
+                for j in range(
+                    1,
+                    len(trajectory)
+                ):
+
+                    px, py = (
+                        trajectory[j - 1]
+                    )
+
+                    cx, cy = (
+                        trajectory[j]
+                    )
+
+                    total_distance += math.sqrt(
+
+                        (cx - px) ** 2
+                        +
+                        (cy - py) ** 2
+                    )
+
+
+            # =================================================
+            # SIMPLE ANOMALY INDICATOR
+            # =================================================
 
             if movement_distance > 80:
 
@@ -431,7 +482,7 @@ while True:
 
 
             # =================================================
-            # RISK SCORE
+            # RISK
             # =================================================
 
             risk = calculate_risk_score(
@@ -445,7 +496,7 @@ while True:
 
 
             # =================================================
-            # STORE RESULT
+            # SAVE TRACK INFORMATION
             # =================================================
 
             track_results[
@@ -467,7 +518,7 @@ while True:
                         3
                     ),
 
-                "position": {
+                "current_position": {
 
                     "x":
                         center_x,
@@ -478,12 +529,36 @@ while True:
 
                 "movement": {
 
-                    "distance":
+                    "frame_distance":
                         round(
                             movement_distance,
                             2
+                        ),
+
+                    "total_distance":
+                        round(
+                            total_distance,
+                            2
                         )
                 },
+
+                "trajectory": [
+
+                    {
+
+                        "frame":
+                            frame_number,
+
+                        "x":
+                            point[0],
+
+                        "y":
+                            point[1]
+
+                    }
+
+                    for point in trajectory
+                ],
 
                 "anomaly": {
 
@@ -503,7 +578,77 @@ while True:
 
 
             # =================================================
-            # DRAW TRACKING BOX
+            # DRAW BOUNDING BOX
+            # =================================================
+
+            cv2.rectangle(
+
+                annotated_frame,
+
+                (x1, y1),
+
+                (x2, y2),
+
+                (0, 255, 0),
+
+                2
+            )
+
+
+            # =================================================
+            # DRAW TRAJECTORY
+            # =================================================
+
+            if len(trajectory) >= 2:
+
+                for j in range(
+                    1,
+                    len(trajectory)
+                ):
+
+                    point_a = (
+                        trajectory[j - 1]
+                    )
+
+                    point_b = (
+                        trajectory[j]
+                    )
+
+
+                    cv2.line(
+
+                        annotated_frame,
+
+                        point_a,
+
+                        point_b,
+
+                        (0, 255, 255),
+
+                        3
+                    )
+
+
+            # =================================================
+            # DRAW CENTROID
+            # =================================================
+
+            cv2.circle(
+
+                annotated_frame,
+
+                current_position,
+
+                5,
+
+                (0, 255, 255),
+
+                -1
+            )
+
+
+            # =================================================
+            # LABEL
             # =================================================
 
             label = (
@@ -520,30 +665,19 @@ while True:
             )
 
 
-            cv2.rectangle(
-
-                annotated_frame,
-
-                (x1, y1),
-
-                (x2, y2),
-
-                (0, 255, 0),
-
-                2
-            )
-
-
             cv2.putText(
 
                 annotated_frame,
 
                 label,
 
-                (x1, max(
-                    y1 - 10,
-                    20
-                )),
+                (
+                    x1,
+                    max(
+                        y1 - 10,
+                        25
+                    )
+                ),
 
                 cv2.FONT_HERSHEY_SIMPLEX,
 
@@ -555,26 +689,8 @@ while True:
             )
 
 
-            # ------------------------------------------------
-            # TRACK CENTROID
-            # ------------------------------------------------
-
-            cv2.circle(
-
-                annotated_frame,
-
-                current_position,
-
-                4,
-
-                (0, 255, 255),
-
-                -1
-            )
-
-
     # ========================================================
-    # FRAME INFORMATION
+    # FRAME COUNTER
     # ========================================================
 
     cv2.putText(
@@ -583,11 +699,33 @@ while True:
 
         f"Frame: {frame_number}/{total_frames}",
 
-        (20, 30),
+        (20, 35),
 
         cv2.FONT_HERSHEY_SIMPLEX,
 
-        0.7,
+        0.75,
+
+        (255, 255, 255),
+
+        2
+    )
+
+
+    # ========================================================
+    # OBJECT COUNT
+    # ========================================================
+
+    cv2.putText(
+
+        annotated_frame,
+
+        f"Tracked Objects: {len(track_history)}",
+
+        (20, 65),
+
+        cv2.FONT_HERSHEY_SIMPLEX,
+
+        0.65,
 
         (255, 255, 255),
 
@@ -674,7 +812,7 @@ with open(
 
 
 # ============================================================
-# FINAL OUTPUT
+# COMPLETE
 # ============================================================
 
 print()
