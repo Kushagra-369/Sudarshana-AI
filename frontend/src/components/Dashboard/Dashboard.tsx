@@ -1,22 +1,20 @@
-
-
 // components/Dashboard.tsx
-import React, { useState} from "react";
+import React, { useState, useEffect } from "react";
 import {
   AlertTriangle,
-
   Server,
   Target,
-  MapPin,
   Clock,
   Shield,
-  User,
-  Truck,
 
   Zap,
   AlertCircle,
+  Eye,
+
+  Radio,
 
 } from "lucide-react";
+import { getDashboard } from "../../api";
 
 // ============================================================
 // TYPES
@@ -26,79 +24,135 @@ interface Threat {
   type: "Vehicle" | "Person" | "Other";
   location: string;
   score: number;
-  level: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
+  level: "HIGH" | "MEDIUM" | "LOW";
   reason: string;
   trackId: string;
   timestamp: string;
 }
 
-// ============================================================
-// MOCK DATA
-// ============================================================
-const metrics = [
-  { label: "ACTIVE THREATS", value: "08", icon: AlertTriangle, color: "#D9534F" },
-  { label: "OBJECTS DETECTED", value: "47", icon: Target, color: "#6FAF72" },
-  { label: "ANOMALIES", value: "12", icon: Zap, color: "#D59B3A" },
-  { label: "SYSTEM STATUS", value: "OPERATIONAL", icon: Server, color: "#6FAF72" },
-];
-
-const threats: Threat[] = [
-  {
-    id: "T-001",
-    type: "Vehicle",
-    location: "Sector B",
-    score: 82,
-    level: "CRITICAL",
-    reason: "Restricted zone entry",
-    trackId: "T-001",
-    timestamp: "14:32:18",
-  },
-  {
-    id: "T-002",
-    type: "Person",
-    location: "Sector A",
-    score: 67,
-    level: "HIGH",
-    reason: "Unusual movement pattern",
-    trackId: "T-002",
-    timestamp: "14:28:45",
-  },
-  {
-    id: "T-003",
-    type: "Vehicle",
-    location: "Sector C",
-    score: 48,
-    level: "MEDIUM",
-    reason: "Abnormal speed",
-    trackId: "T-003",
-    timestamp: "14:15:22",
-  },
-];
-
-const aiAssessment = {
-  overallRisk: "HIGH",
-  score: 72,
-  breakdown: [
-    { label: "Restricted Zone Entry", score: 40 },
-    { label: "Unusual Timestamp", score: 20 },
-    { label: "Abnormal Movement", score: 12 },
-  ],
-  summary: "Increased activity has been observed in Sector B. One event has been flagged due to restricted-zone entry and unusual timing.",
-  requiresReview: true,
-  timestamp: "2025-04-13 14:32:18",
-};
+interface AIAssessment {
+  overallRisk: "LOW" | "MEDIUM" | "HIGH";
+  score: number;
+  breakdown: {
+    label: string;
+    score: number;
+  }[];
+  summary: string;
+  timestamp: string;
+  requiresReview: boolean;
+}
 
 // ============================================================
 // COMPONENT
 // ============================================================
 const Dashboard: React.FC = () => {
-  const [, setSelectedThreat] = useState<string | null>(null);
+
+  const [threats, setThreats] = useState<Threat[]>([]);
+  const [dashboard, setDashboard] = useState<any>(null);
+  const [aiAssessment] = useState<AIAssessment>({
+    overallRisk: "LOW",
+    score: 0,
+    breakdown: [],
+    summary: "No AI assessment available.",
+    timestamp: new Date().toLocaleTimeString(),
+    requiresReview: false,
+  });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const metrics = dashboard
+    ? [
+      {
+        label: "ACTIVE THREATS",
+        value: String(dashboard.active_threats ?? 0).padStart(2, "0"),
+        icon: AlertTriangle,
+        color: "#D9534F",
+      },
+      {
+        label: "OBJECTS DETECTED",
+        value: String(dashboard.objects_detected ?? 0).padStart(2, "0"),
+        icon: Target,
+        color: "#6FAF72",
+      },
+      {
+        label: "ANOMALIES",
+        value: String(dashboard.anomalies ?? 0).padStart(2, "0"),
+        icon: Zap,
+        color: "#D59B3A",
+      },
+      {
+        label: "SYSTEM STATUS",
+        value: dashboard.status === "UNKNOWN"
+          ? "OFFLINE"
+          : "OPERATIONAL",
+        icon: Server,
+        color: "#6FAF72",
+      },
+    ]
+    : [];
+
+  useEffect(() => {
+    const loadDashboard = async () => {
+      try {
+        const data = await getDashboard();
+
+        setDashboard(data);
+
+        const threatResponse = await fetch(
+          `${import.meta.env.VITE_API_URL}/api/threats`
+        );
+
+        if (!threatResponse.ok) {
+          throw new Error("Failed to fetch threats");
+        }
+
+        const threatData = await threatResponse.json();
+
+        const mappedThreats: Threat[] = threatData.threats.map(
+          (item: any, index: number) => ({
+            id: `T-${String(index + 1).padStart(3, "0")}`,
+            type: item.category,
+            location: `Track ${item.track_id}`,
+            score: item.risk?.score ?? 0,
+            level:
+              item.risk?.level === "HIGH"
+                ? "HIGH"
+                : item.risk?.level === "MEDIUM"
+                  ? "MEDIUM"
+                  : "LOW",
+            reason:
+              item.anomaly?.level &&
+                item.anomaly.level !== "LOW"
+                ? `${item.anomaly.level} anomaly`
+                : "Risk assessment",
+            trackId: String(item.track_id ?? "-"),
+            timestamp: new Date().toLocaleTimeString(),
+          })
+        );
+
+        setThreats(mappedThreats);
+      } catch (err) {
+        console.error("DASHBOARD ERROR:", err);
+
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError("Failed to load dashboard data");
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadDashboard();
+  }, []);
 
   // ---- COLORS ----
   const colors = {
     bg: "#080D0C",
     surface: "#111A16",
     surfaceLighter: "#1A2A24",
+    surfaceDark: "#0A120E",
     border: "#26352D",
     borderLight: "#354A40",
     textPrimary: "#E6E8E3",
@@ -115,15 +169,24 @@ const Dashboard: React.FC = () => {
     background: colors.bg,
     padding: "1.5rem",
     minHeight: "calc(100vh - 82px)",
-    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontFamily:
+      '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     color: colors.textPrimary,
   };
 
-  // ---- COMMAND HEADER ----
   const commandHeaderStyle: React.CSSProperties = {
     marginBottom: "1.5rem",
     borderBottom: `1px solid ${colors.border}`,
     paddingBottom: "0.75rem",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "flex-end",
+  };
+
+  const commandLeftStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.25rem",
   };
 
   const commandTitleStyle: React.CSSProperties = {
@@ -138,15 +201,13 @@ const Dashboard: React.FC = () => {
     fontSize: "20px",
     fontWeight: 700,
     color: colors.textPrimary,
-    marginTop: "0.25rem",
   };
 
   const commandStatusStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
     gap: "1.5rem",
-    marginTop: "0.5rem",
-    fontSize: "12px",
+    fontSize: "11px",
     color: colors.textSecondary,
   };
 
@@ -158,6 +219,14 @@ const Dashboard: React.FC = () => {
     display: "inline-block",
     marginRight: "6px",
   });
+
+  const commandRightStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "1rem",
+    fontSize: "11px",
+    color: colors.textSecondary,
+  };
 
   // ---- METRICS ----
   const metricsGridStyle: React.CSSProperties = {
@@ -176,41 +245,10 @@ const Dashboard: React.FC = () => {
     gap: "0.75rem",
   };
 
-  const metricIconStyle: React.CSSProperties = {
-    width: "36px",
-    height: "36px",
-    borderRadius: "4px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    background: colors.surfaceLighter,
-    border: `1px solid ${colors.border}`,
-  };
-
-  const metricContentStyle: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-  };
-
-  const metricValueStyle: React.CSSProperties = {
-    fontSize: "18px",
-    fontWeight: 700,
-    color: colors.textPrimary,
-    lineHeight: 1.2,
-  };
-
-  const metricLabelStyle: React.CSSProperties = {
-    fontSize: "10px",
-    fontWeight: 500,
-    color: colors.textSecondary,
-    letterSpacing: "0.5px",
-    textTransform: "uppercase",
-  };
-
   // ---- MAIN GRID ----
   const mainGridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "2fr 1fr",
+    gridTemplateColumns: "3fr 2fr",
     gap: "1rem",
     marginBottom: "1.5rem",
   };
@@ -231,56 +269,63 @@ const Dashboard: React.FC = () => {
   };
 
   const panelTitleStyle: React.CSSProperties = {
-    fontSize: "11px",
+    fontSize: "10px",
     fontWeight: 600,
     color: colors.textSecondary,
     letterSpacing: "0.8px",
     textTransform: "uppercase",
   };
 
-  // ---- SURVEILLANCE FEED ----
-  const feedContainerStyle: React.CSSProperties = {
-    position: "relative",
-    background: "#0A1210",
-    borderRadius: "4px",
-    height: "340px",
-    overflow: "hidden",
-    border: `1px solid ${colors.borderLight}`,
+  // ---- CRITICAL THREAT BANNER ----
+  const criticalThreatStyle: React.CSSProperties = {
+    background: `${colors.accentRed}15`,
+    border: `2px solid ${colors.accentRed}`,
+    padding: "1rem",
+    marginBottom: "1rem",
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
   };
 
-  const feedOverlayStyle: React.CSSProperties = {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    padding: "0.75rem",
+  const criticalThreatLeftStyle: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
-    justifyContent: "space-between",
+    gap: "0.25rem",
   };
 
-  const feedTopBarStyle: React.CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
+  const criticalThreatLabelStyle: React.CSSProperties = {
     fontSize: "10px",
-    color: colors.textSecondary,
+    fontWeight: 700,
+    color: colors.accentRed,
     letterSpacing: "0.5px",
+    textTransform: "uppercase",
   };
 
-  const feedRecStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.5rem",
+  const criticalThreatTitleStyle: React.CSSProperties = {
+    fontSize: "16px",
+    fontWeight: 700,
+    color: colors.textPrimary,
   };
 
-  const recDotStyle: React.CSSProperties = {
-    width: "6px",
-    height: "6px",
-    borderRadius: "50%",
-    background: colors.accentRed,
-    animation: "pulse-dot 1s infinite",
+  const criticalThreatSubStyle: React.CSSProperties = {
+    fontSize: "12px",
+    color: colors.textSecondary,
+  };
+
+  const criticalThreatScoreStyle: React.CSSProperties = {
+    fontSize: "28px",
+    fontWeight: 700,
+    color: colors.accentRed,
+  };
+
+  // ---- SURVEILLANCE FEED (Compact) ----
+  const compactFeedStyle: React.CSSProperties = {
+    position: "relative",
+    background: colors.surfaceDark,
+    borderRadius: "4px",
+    height: "200px",
+    overflow: "hidden",
+    border: `1px solid ${colors.borderLight}`,
   };
 
   const feedSceneStyle: React.CSSProperties = {
@@ -290,7 +335,6 @@ const Dashboard: React.FC = () => {
     background: "radial-gradient(ellipse at center, #1A2A24 0%, #0A1210 100%)",
   };
 
-  // Ground/terrain
   const groundStyle: React.CSSProperties = {
     position: "absolute",
     bottom: 0,
@@ -301,30 +345,22 @@ const Dashboard: React.FC = () => {
     borderTop: `1px solid ${colors.borderLight}`,
   };
 
-  // Road
-  const roadStyle: React.CSSProperties = {
-    position: "absolute",
-    bottom: "20%",
-    left: "10%",
-    right: "10%",
-    height: "4px",
-    background: colors.borderLight,
-    opacity: 0.5,
-  };
-
-  // Bounding box style
-  const bboxStyle = (color: string, top: string, left: string): React.CSSProperties => ({
+  const bboxStyle = (
+    color: string,
+    top: string,
+    left: string
+  ): React.CSSProperties => ({
     position: "absolute",
     border: `2px solid ${color}`,
     background: `${color}15`,
-    padding: "0.25rem 0.5rem",
+    padding: "0.2rem 0.4rem",
     borderRadius: "2px",
-    fontSize: "9px",
+    fontSize: "8px",
     fontWeight: 600,
     color: colors.textPrimary,
     top,
     left,
-    minWidth: "80px",
+    minWidth: "70px",
   });
 
   const bboxLabelStyle: React.CSSProperties = {
@@ -333,116 +369,66 @@ const Dashboard: React.FC = () => {
     lineHeight: 1.2,
   };
 
-  // Tracking line
-  const trackLineStyle: React.CSSProperties = {
-    position: "absolute",
-    border: `1px dashed ${colors.accentAmber}`,
-    opacity: 0.4,
-    pointerEvents: "none",
-  };
-
-  // ---- MAP ----
-  const mapContainerStyle: React.CSSProperties = {
-    background: "#0A1210",
-    borderRadius: "4px",
-    height: "340px",
-    padding: "0.75rem",
-    border: `1px solid ${colors.borderLight}`,
-    position: "relative",
-  };
-
-  const mapGridStyle: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
-    gridTemplateRows: "repeat(4, 1fr)",
-    height: "100%",
-    gap: "1px",
-    background: colors.borderLight,
-  };
-
-  const mapCellStyle: React.CSSProperties = {
-    background: "#0A1210",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    fontSize: "9px",
-    color: colors.textSecondary,
-    position: "relative",
-  };
-
-  const mapLegendStyle: React.CSSProperties = {
-    position: "absolute",
-    bottom: "0.5rem",
-    right: "0.5rem",
-    fontSize: "8px",
-    color: colors.textSecondary,
-    background: "rgba(8, 13, 12, 0.9)",
-    padding: "0.25rem 0.5rem",
-    border: `1px solid ${colors.border}`,
+  // ---- THREAT LIST (Prioritized) ----
+  const threatListStyle: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
-    gap: "2px",
+    gap: "0.5rem",
+    maxHeight: "300px",
+    overflowY: "auto",
   };
 
-  // ---- BOTTOM GRID ----
-  const bottomGridStyle: React.CSSProperties = {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
-    gap: "1rem",
-  };
-
-  // ---- THREAT ITEMS ----
-  const threatItemStyle = (level: string): React.CSSProperties => {
+  const threatItemStyle = (
+    level: "HIGH" | "MEDIUM" | "LOW"
+  ): React.CSSProperties => {
     let borderColor = colors.border;
-    if (level === "CRITICAL") borderColor = colors.accentRed;
-    else if (level === "HIGH") borderColor = colors.accentOrange;
-    else if (level === "MEDIUM") borderColor = colors.accentAmber;
+    let bg = colors.surfaceLighter;
+
+    if (level === "HIGH") {
+      borderColor = colors.accentRed;
+      bg = `${colors.accentRed}10`;
+    } else if (level === "MEDIUM") {
+      borderColor = colors.accentAmber;
+      bg = `${colors.accentAmber}10`;
+    } else {
+      borderColor = colors.border;
+      bg = colors.surfaceLighter;
+    }
+
     return {
-      padding: "0.6rem 0.75rem",
-      borderLeft: `3px solid ${borderColor}`,
-      borderBottom: `1px solid ${colors.border}`,
-      marginBottom: "0.5rem",
+      padding: "0.5rem 0.75rem",
+      borderLeft: `4px solid ${borderColor}`,
+      background: bg,
       cursor: "pointer",
       transition: "background 0.15s",
     };
   };
 
-  const threatHeaderStyle: React.CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  };
-
-  const threatLevelStyle = (level: string): React.CSSProperties => {
+  const threatLevelBadge = (
+    level: "HIGH" | "MEDIUM" | "LOW"
+  ): React.CSSProperties => {
     let color = colors.textSecondary;
-    if (level === "CRITICAL") color = colors.accentRed;
-    else if (level === "HIGH") color = colors.accentOrange;
-    else if (level === "MEDIUM") color = colors.accentAmber;
+
+    if (level === "HIGH") {
+      color = colors.accentRed;
+    } else if (level === "MEDIUM") {
+      color = colors.accentAmber;
+    } else {
+      color = colors.textSecondary;
+    }
+
     return {
-      fontSize: "9px",
+      fontSize: "8px",
       fontWeight: 700,
       color,
-      letterSpacing: "0.5px",
+      letterSpacing: "0.3px",
     };
   };
-
-  const threatScoreStyle = (score: number): React.CSSProperties => {
-    let color = colors.accentGreen;
-    if (score > 80) color = colors.accentRed;
-    else if (score > 60) color = colors.accentOrange;
-    else if (score > 40) color = colors.accentAmber;
-    return {
-      fontSize: "14px",
-      fontWeight: 700,
-      color,
-    };
-  };
-
   // ---- AI ASSESSMENT ----
   const aiRiskStyle: React.CSSProperties = {
     display: "inline-block",
-    padding: "0.2rem 0.75rem",
-    fontSize: "11px",
+    padding: "0.15rem 0.6rem",
+    fontSize: "10px",
     fontWeight: 700,
     background: colors.accentRed,
     color: colors.textPrimary,
@@ -460,15 +446,15 @@ const Dashboard: React.FC = () => {
   const aiBreakdownRowStyle: React.CSSProperties = {
     display: "flex",
     justifyContent: "space-between",
-    fontSize: "11px",
-    padding: "0.15rem 0",
+    fontSize: "10px",
+    padding: "0.1rem 0",
     color: colors.textSecondary,
   };
 
   const aiSummaryStyle: React.CSSProperties = {
-    fontSize: "13px",
+    fontSize: "12px",
     lineHeight: 1.5,
-    color: colors.textPrimary,
+    color: colors.textSecondary,
     margin: "0.5rem 0",
     padding: "0.5rem",
     background: colors.surfaceLighter,
@@ -477,27 +463,27 @@ const Dashboard: React.FC = () => {
 
   const reviewBadgeStyle: React.CSSProperties = {
     display: "inline-block",
-    padding: "0.15rem 0.6rem",
-    fontSize: "9px",
+    padding: "0.1rem 0.5rem",
+    fontSize: "8px",
     fontWeight: 600,
     color: colors.accentRed,
     border: `1px solid ${colors.accentRed}`,
-    letterSpacing: "0.5px",
+    letterSpacing: "0.3px",
   };
 
-  // ---- KEYFRAMES ----
   React.useEffect(() => {
     const style = document.createElement("style");
-
     style.textContent = `
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.3; }
-    }
-  `;
-
+      @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.3; }
+      }
+      @keyframes pulse-critical {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(217, 83, 79, 0.4); }
+        50% { box-shadow: 0 0 0 8px rgba(217, 83, 79, 0); }
+      }
+    `;
     document.head.appendChild(style);
-
     return () => {
       document.head.removeChild(style);
     };
@@ -506,21 +492,38 @@ const Dashboard: React.FC = () => {
   // ============================================================
   // RENDER
   // ============================================================
+  const criticalThreat = threats.find(
+    (t) => t.level === "HIGH"
+  );
+
   return (
     <div style={containerStyle}>
+      {loading && (
+        <p style={{ color: colors.textSecondary }}>Loading dashboard...</p>
+      )}
+      {error && <p style={{ color: colors.accentRed }}>{error}</p>}
+
       {/* COMMAND HEADER */}
       <div style={commandHeaderStyle}>
-        <div style={commandTitleStyle}>Command Centre</div>
-        <div style={commandSubtitleStyle}>Current Operational Situation</div>
-        <div style={commandStatusStyle}>
-          <span>
-            <span style={statusDotStyle(true)} />
-            OPERATIONAL
+        <div style={commandLeftStyle}>
+          <div style={commandTitleStyle}>Command Centre</div>
+          <div style={commandSubtitleStyle}>Current Operational Situation</div>
+          <div style={commandStatusStyle}>
+            <span>
+              <span style={statusDotStyle(true)} />
+              OPERATIONAL
+            </span>
+            <span>•</span>
+            <span>LOCAL PROCESSING</span>
+            <span>•</span>
+            <span>{new Date().toLocaleTimeString()}</span>
+          </div>
+        </div>
+        <div style={commandRightStyle}>
+          <span style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+            <Radio size={12} color={colors.accentGreen} />
+            All Systems Online
           </span>
-          <span>•</span>
-          <span>LOCAL PROCESSING</span>
-          <span>•</span>
-          <span>{new Date().toLocaleTimeString()}</span>
         </div>
       </div>
 
@@ -530,217 +533,342 @@ const Dashboard: React.FC = () => {
           const Icon = metric.icon;
           return (
             <div key={idx} style={metricCardStyle}>
-              <div style={metricIconStyle}>
-                <Icon size={18} color={metric.color} />
+              <div
+                style={{
+                  width: "32px",
+                  height: "32px",
+                  borderRadius: "4px",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  background: colors.surfaceLighter,
+                  border: `1px solid ${colors.border}`,
+                }}
+              >
+                <Icon size={16} color={metric.color} />
               </div>
-              <div style={metricContentStyle}>
-                <span style={metricValueStyle}>{metric.value}</span>
-                <span style={metricLabelStyle}>{metric.label}</span>
+              <div style={{ display: "flex", flexDirection: "column" }}>
+                <span
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: 700,
+                    color: colors.textPrimary,
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {metric.value}
+                </span>
+                <span
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: 500,
+                    color: colors.textSecondary,
+                    letterSpacing: "0.5px",
+                    textTransform: "uppercase",
+                  }}
+                >
+                  {metric.label}
+                </span>
               </div>
             </div>
           );
         })}
       </div>
 
-      {/* MAIN GRID: Surveillance + Map */}
+      {/* MAIN GRID */}
       <div style={mainGridStyle}>
-        {/* SURVEILLANCE FEED */}
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <span style={panelTitleStyle}>Surveillance Feed • Sector B • Cam-04</span>
-            <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-              <Clock size={12} style={{ display: "inline", marginRight: "4px" }} />
-              14:32:18
-            </span>
-          </div>
-          <div style={feedContainerStyle}>
-            <div style={feedSceneStyle}>
-              {/* Ground */}
-              <div style={groundStyle} />
-              <div style={roadStyle} />
-
-              {/* Vehicle BBox */}
-              <div style={{ ...bboxStyle(colors.accentOrange, "35%", "25%"), borderColor: colors.accentOrange }}>
-                <div style={bboxLabelStyle}>
-                  <span style={{ fontWeight: 700 }}>VEHICLE #04</span>
-                  <span style={{ fontSize: "8px", color: colors.textSecondary }}>94% • TRACK: T-001</span>
-                  <span style={{ fontSize: "8px", color: colors.accentOrange }}>THREAT: HIGH</span>
+        {/* LEFT: Critical Threat + Surveillance */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {/* Critical Threat Banner */}
+          {criticalThreat && (
+            <div style={criticalThreatStyle}>
+              <div style={criticalThreatLeftStyle}>
+                <div style={criticalThreatLabelStyle}>
+                  <AlertTriangle
+                    size={14}
+                    style={{ display: "inline", marginRight: "4px" }}
+                  />
+                  HIGH THREAT DETECTED
+                </div>
+                <div style={criticalThreatTitleStyle}>
+                  {criticalThreat.type} • {criticalThreat.id}
+                </div>
+                <div style={criticalThreatSubStyle}>
+                  {criticalThreat.location} • {criticalThreat.reason} • Track:{" "}
+                  {criticalThreat.trackId}
                 </div>
               </div>
-
-              {/* Person BBox */}
-              <div style={{ ...bboxStyle(colors.accentGreen, "55%", "50%"), borderColor: colors.accentGreen }}>
-                <div style={bboxLabelStyle}>
-                  <span style={{ fontWeight: 700 }}>PERSON #12</span>
-                  <span style={{ fontSize: "8px", color: colors.textSecondary }}>91% • TRACK: T-002</span>
-                  <span style={{ fontSize: "8px", color: colors.textSecondary }}>STATUS: NORMAL</span>
+              <div style={{ textAlign: "right" }}>
+                <div style={criticalThreatScoreStyle}>
+                  {criticalThreat.score}/100
                 </div>
-              </div>
-
-              {/* Tracking line */}
-              <div style={{ ...trackLineStyle, top: "40%", left: "30%", width: "80px", transform: "rotate(45deg)" }} />
-
-              {/* Feed overlay */}
-              <div style={feedOverlayStyle}>
-                <div style={feedTopBarStyle}>
-                  <div style={feedRecStyle}>
-                    <span style={recDotStyle} />
-                    <span>REC</span>
-                  </div>
-                  <span>LOCAL FEED</span>
-                </div>
-                <div style={{ display: "flex", gap: "0.5rem", fontSize: "9px", color: colors.textSecondary }}>
-                  <span>OBJECTS: 02</span>
-                  <span>•</span>
-                  <span>TRACKING: 02</span>
+                <div style={{ fontSize: "10px", color: colors.textSecondary }}>
+                  Threat Score
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          )}
 
-        {/* TACTICAL MAP */}
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <span style={panelTitleStyle}>Tactical Situation Map</span>
-            <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-              <MapPin size={12} style={{ display: "inline", marginRight: "4px" }} />
-              Sectors: A-D
-            </span>
-          </div>
-          <div style={mapContainerStyle}>
-            <div style={mapGridStyle}>
-              {["A1", "A2", "A3", "A4", "B1", "B2", "B3", "B4", "C1", "C2", "C3", "C4", "D1", "D2", "D3", "D4"].map((cell) => (
-                <div key={cell} style={mapCellStyle}>
-                  {cell}
-                  {cell === "B2" && (
-                    <div style={{ position: "absolute", top: "30%", left: "30%" }}>
-                      <Target size={12} color={colors.accentRed} />
-                    </div>
-                  )}
-                  {cell === "A3" && (
-                    <div style={{ position: "absolute", top: "40%", right: "20%" }}>
-                      <User size={12} color={colors.accentGreen} />
-                    </div>
-                  )}
-                  {cell === "C2" && (
-                    <div style={{ position: "absolute", bottom: "30%", left: "30%" }}>
-                      <Truck size={12} color={colors.accentAmber} />
-                    </div>
-                  )}
-                  {cell === "B3" && (
-                    <div style={{
-                      position: "absolute",
-                      top: "20%",
-                      left: "20%",
-                      right: "20%",
-                      bottom: "20%",
-                      border: `1px dashed ${colors.accentRed}`,
-                      opacity: 0.5,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "7px",
-                      color: colors.accentRed,
-                    }}>
-                      RESTRICTED
-                    </div>
-                  )}
-                </div>
-              ))}
+          {/* Surveillance Feed (Compact) */}
+          <div style={panelStyle}>
+            <div style={panelHeaderStyle}>
+              <span style={panelTitleStyle}>
+                <Eye size={14} style={{ display: "inline", marginRight: "6px" }} />
+                Primary Feed • Sector B • Cam-04
+              </span>
+              <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+                <Clock size={12} style={{ display: "inline", marginRight: "4px" }} />
+                14:32:18
+              </span>
             </div>
-            <div style={mapLegendStyle}>
-              <span style={{ color: colors.accentRed }}>● Critical</span>
-              <span style={{ color: colors.accentOrange }}>● High</span>
-              <span style={{ color: colors.accentAmber }}>● Medium</span>
-              <span style={{ color: colors.accentGreen }}>● Normal</span>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      {/* BOTTOM GRID: Threats + AI Assessment */}
-      <div style={bottomGridStyle}>
-        {/* ACTIVE THREATS */}
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <span style={panelTitleStyle}>Active Threats</span>
-            <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-              <AlertCircle size={12} style={{ display: "inline", marginRight: "4px" }} />
-              {threats.length} threats
-            </span>
-          </div>
-          <div>
-            {threats.map((threat) => (
-              <div
-                key={threat.id}
-                style={threatItemStyle(threat.level)}
-                onClick={() => setSelectedThreat(threat.id)}
-              >
-                <div style={threatHeaderStyle}>
-                  <div>
-                    <span style={threatLevelStyle(threat.level)}>{threat.level}</span>
-                    <span style={{ marginLeft: "0.5rem", fontSize: "12px", fontWeight: 600 }}>
-                      {threat.type} • {threat.id}
+            <div style={compactFeedStyle}>
+              <div style={feedSceneStyle}>
+                <div style={groundStyle} />
+                <div
+                  style={{
+                    ...bboxStyle(colors.accentRed, "35%", "25%"),
+                    borderColor: colors.accentRed,
+                    animation: "pulse-critical 2s infinite",
+                  }}
+                >
+                  <div style={bboxLabelStyle}>
+                    <span style={{ fontWeight: 700 }}>VEHICLE #04</span>
+                    <span style={{ fontSize: "7px", color: colors.textSecondary }}>
+                      94% • TRACK: T-001
+                    </span>
+                    <span style={{ fontSize: "7px", color: colors.accentRed }}>
+                      CRITICAL
                     </span>
                   </div>
-                  <div style={threatScoreStyle(threat.score)}>
-                    {threat.score}/100
+                </div>
+                <div
+                  style={{
+                    ...bboxStyle(colors.accentGreen, "55%", "50%"),
+                    borderColor: colors.accentGreen,
+                  }}
+                >
+                  <div style={bboxLabelStyle}>
+                    <span style={{ fontWeight: 700 }}>PERSON #12</span>
+                    <span style={{ fontSize: "7px", color: colors.textSecondary }}>
+                      91% • TRACK: T-002
+                    </span>
                   </div>
                 </div>
-                <div style={{ fontSize: "10px", color: colors.textSecondary, marginTop: "0.25rem" }}>
-                  {threat.location} • {threat.reason} • Track: {threat.trackId}
+                <div
+                  style={{
+                    position: "absolute",
+                    top: 0,
+                    left: 0,
+                    right: 0,
+                    bottom: 0,
+                    padding: "0.5rem",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    pointerEvents: "none",
+                  }}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "0.5rem",
+                      fontSize: "9px",
+                      color: colors.textSecondary,
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: "6px",
+                        height: "6px",
+                        borderRadius: "50%",
+                        background: colors.accentRed,
+                        animation: "pulse-dot 1s infinite",
+                      }}
+                    />
+                    REC
+                  </div>
+                  <div style={{ fontSize: "9px", color: colors.textSecondary }}>
+                    OBJECTS: 02 • TRACKING: 02
+                  </div>
                 </div>
               </div>
-            ))}
+            </div>
           </div>
         </div>
 
-        {/* AI SITUATION ASSESSMENT */}
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <span style={panelTitleStyle}>AI Situation Assessment</span>
-            <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-              <Shield size={12} style={{ display: "inline", marginRight: "4px" }} />
-              v2.1
-            </span>
-          </div>
-          <div>
-            <span style={aiRiskStyle}>OVERALL RISK: {aiAssessment.overallRisk}</span>
-            <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", margin: "0.5rem 0" }}>
-              <span style={{ fontSize: "24px", fontWeight: 700 }}>
-                {aiAssessment.score}
+        {/* RIGHT: Threat List + AI Assessment */}
+        <div style={{ display: "flex", flexDirection: "column", gap: "1rem" }}>
+          {/* Threat List */}
+          <div style={panelStyle}>
+            <div style={panelHeaderStyle}>
+              <span style={panelTitleStyle}>
+                <AlertCircle
+                  size={14}
+                  style={{ display: "inline", marginRight: "6px" }}
+                />
+                Active Threats • Prioritized
               </span>
-              <span style={{ fontSize: "14px", color: colors.textSecondary }}>/ 100</span>
+              <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+                {threats.length} threats
+              </span>
             </div>
-
-            <div style={aiBreakdownStyle}>
-              <div style={{ fontSize: "10px", fontWeight: 600, color: colors.textSecondary, marginBottom: "0.25rem" }}>
-                WHY WAS THIS FLAGGED?
-              </div>
-              {aiAssessment.breakdown.map((item, idx) => (
-                <div key={idx} style={aiBreakdownRowStyle}>
-                  <span>{item.label}</span>
-                  <span style={{ fontWeight: 600 }}>+{item.score}</span>
+            <div style={threatListStyle}>
+              {threats.map((threat) => (
+                <div
+                  key={threat.id}
+                  style={threatItemStyle(threat.level)}
+                >
+                  <div
+                    style={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <div>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "0.5rem",
+                        }}
+                      >
+                        <span style={threatLevelBadge(threat.level)}>
+                          {threat.level}
+                        </span>
+                        <span
+                          style={{
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            color: colors.textPrimary,
+                          }}
+                        >
+                          {threat.type} • {threat.id}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: "10px",
+                          color: colors.textSecondary,
+                          marginTop: "2px",
+                        }}
+                      >
+                        {threat.location} • {threat.reason}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right" }}>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: 700,
+                          color:
+                            threat.level === "HIGH"
+                              ? colors.accentRed
+                              : threat.level === "MEDIUM"
+                                ? colors.accentAmber
+                                : colors.accentGreen,
+                        }}
+                      >
+                        {threat.score}/100
+                      </div>
+                      <div
+                        style={{ fontSize: "8px", color: colors.textSecondary }}
+                      >
+                        {threat.timestamp}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ))}
-              <div style={{ ...aiBreakdownRowStyle, borderTop: `1px solid ${colors.border}`, paddingTop: "0.25rem", marginTop: "0.25rem" }}>
-                <span style={{ fontWeight: 700 }}>TOTAL</span>
-                <span style={{ fontWeight: 700, color: colors.textPrimary }}>{aiAssessment.score}</span>
-              </div>
             </div>
+          </div>
 
-            <div style={aiSummaryStyle}>
-              "{aiAssessment.summary}"
-            </div>
-
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: "0.5rem" }}>
-              <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-                {aiAssessment.timestamp}
+          {/* AI Assessment */}
+          <div style={panelStyle}>
+            <div style={panelHeaderStyle}>
+              <span style={panelTitleStyle}>
+                <Shield
+                  size={14}
+                  style={{ display: "inline", marginRight: "6px" }}
+                />
+                AI Situation Assessment
               </span>
-              {aiAssessment.requiresReview && (
-                <span style={reviewBadgeStyle}>REQUIRES HUMAN REVIEW</span>
-              )}
+              <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+                v2.1
+              </span>
+            </div>
+            <div>
+              <span style={aiRiskStyle}>
+                OVERALL RISK: {aiAssessment.overallRisk}
+              </span>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "0.5rem",
+                  margin: "0.25rem 0",
+                }}
+              >
+                <span style={{ fontSize: "22px", fontWeight: 700 }}>
+                  {aiAssessment.score}
+                </span>
+                <span style={{ fontSize: "12px", color: colors.textSecondary }}>
+                  / 100
+                </span>
+              </div>
+
+              <div style={aiBreakdownStyle}>
+                <div
+                  style={{
+                    fontSize: "9px",
+                    fontWeight: 600,
+                    color: colors.textSecondary,
+                    marginBottom: "0.25rem",
+                  }}
+                >
+                  WHY WAS THIS FLAGGED?
+                </div>
+                {aiAssessment.breakdown.map((item, idx) => (
+                  <div key={idx} style={aiBreakdownRowStyle}>
+                    <span>{item.label}</span>
+                    <span style={{ fontWeight: 600 }}>+{item.score}</span>
+                  </div>
+                ))}
+                <div
+                  style={{
+                    ...aiBreakdownRowStyle,
+                    borderTop: `1px solid ${colors.border}`,
+                    paddingTop: "0.25rem",
+                    marginTop: "0.25rem",
+                  }}
+                >
+                  <span style={{ fontWeight: 700 }}>TOTAL</span>
+                  <span
+                    style={{ fontWeight: 700, color: colors.textPrimary }}
+                  >
+                    {aiAssessment.score}
+                  </span>
+                </div>
+              </div>
+
+              <div style={aiSummaryStyle}>"{aiAssessment.summary}"</div>
+
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginTop: "0.25rem",
+                }}
+              >
+                <span style={{ fontSize: "9px", color: colors.textSecondary }}>
+                  {aiAssessment.timestamp}
+                </span>
+                {aiAssessment.requiresReview && (
+                  <span style={reviewBadgeStyle}>REQUIRES HUMAN REVIEW</span>
+                )}
+              </div>
             </div>
           </div>
         </div>

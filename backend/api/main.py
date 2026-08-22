@@ -9,7 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from pathlib import Path
 import json
 from datetime import datetime
+BASE_DIR = Path(__file__).resolve().parent.parent
 
+SURVEILLANCE_FILE = (
+    BASE_DIR / "runs" / "sudarshana" / "surveillance_result.json"
+)
 
 # ============================================================
 # PATH CONFIGURATION
@@ -259,20 +263,19 @@ def summary():
 def threats():
 
     data = load_json(
-        TRACKING_FILE
+        SURVEILLANCE_FILE
     )
 
-    detections = data.get(
-        "detections",
+    tracks = data.get(
+        "tracks",
         []
     )
 
-
     threat_events = []
 
-    for detection in detections:
+    for track in tracks:
 
-        risk = detection.get(
+        risk = track.get(
             "risk",
             {}
         )
@@ -282,45 +285,32 @@ def threats():
             "LOW"
         )
 
-
         if threat_level in [
             "MEDIUM",
             "HIGH"
         ]:
 
-            threat_events.append(
+            threat_events.append({
 
-                {
-                    "track_id":
-                        detection.get(
-                            "track_id"
-                        ),
+                "track_id":
+                    track.get("track_id"),
 
-                    "category":
-                        detection.get(
-                            "category"
-                        ),
+                "category":
+                    track.get("category"),
 
-                    "class":
-                        detection.get(
-                            "class"
-                        ),
+                "class":
+                    track.get("class"),
 
-                    "confidence":
-                        detection.get(
-                            "confidence"
-                        ),
+                "confidence":
+                    track.get("confidence"),
 
-                    "anomaly":
-                        detection.get(
-                            "anomaly"
-                        ),
+                "anomaly":
+                    track.get("anomaly"),
 
-                    "risk":
-                        risk
-                }
-            )
+                "risk":
+                    risk
 
+            })
 
     return {
 
@@ -331,7 +321,6 @@ def threats():
             threat_events
     }
 
-
 # ============================================================
 # DASHBOARD OVERVIEW
 # ============================================================
@@ -339,92 +328,54 @@ def threats():
 @app.get("/api/dashboard")
 def dashboard():
 
-    detection_data = load_json(
-        DETECTION_FILE
+    data = load_json(
+        SURVEILLANCE_FILE
     )
 
-    tracking_data = load_json(
-        TRACKING_FILE
-    )
-
-    summary_data = load_json(
-        SUMMARY_FILE
-    )
-
-
-    detections = tracking_data.get(
-        "detections",
+    tracks = data.get(
+        "tracks",
         []
     )
 
-
     persons = sum(
-
         1
-
-        for detection in detections
-
-        if detection.get("category")
-        == "Person"
+        for track in tracks
+        if track.get("category") == "Person"
     )
-
 
     vehicles = sum(
-
         1
-
-        for detection in detections
-
-        if detection.get("category")
-        == "Vehicle"
+        for track in tracks
+        if track.get("category") == "Vehicle"
     )
 
-
     anomalies = sum(
-
         1
-
-        for detection in detections
-
-        if detection.get(
+        for track in tracks
+        if track.get(
             "anomaly",
             {}
         ).get("level")
-
-        in [
-            "MEDIUM",
-            "HIGH"
-        ]
+        in ["MEDIUM", "HIGH"]
     )
-
 
     high_risk = sum(
-
         1
-
-        for detection in detections
-
-        if detection.get(
+        for track in tracks
+        if track.get(
             "risk",
             {}
-        ).get("level")
-        == "HIGH"
+        ).get("level") == "HIGH"
     )
-
 
     medium_risk = sum(
-
         1
-
-        for detection in detections
-
-        if detection.get(
+        for track in tracks
+        if track.get(
             "risk",
             {}
-        ).get("level")
-        == "MEDIUM"
+        ).get("level") == "MEDIUM"
     )
-
 
     return {
 
@@ -432,13 +383,10 @@ def dashboard():
             "SUDARSHANA-AI",
 
         "status":
-            summary_data.get(
-                "overall_status",
-                "UNKNOWN"
-            ),
+            "OPERATIONAL",
 
         "objects_detected":
-            len(detections),
+            len(tracks),
 
         "persons":
             persons,
@@ -459,11 +407,24 @@ def dashboard():
             medium_risk,
 
         "summary":
-            summary_data.get(
-                "summary",
-                ""
-            ),
+            "Video surveillance analysis completed.",
 
         "timestamp":
             datetime.now().isoformat()
     }
+
+
+LIVE_STATUS_FILE = (
+    OUTPUT_DIR
+    / "live_detection.json"
+)
+
+
+@app.get("/api/live")
+def live_detection():
+
+    data = load_json(
+        LIVE_STATUS_FILE
+    )
+
+    return data

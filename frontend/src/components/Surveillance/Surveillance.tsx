@@ -1,22 +1,26 @@
-// components/Surveillance.tsx
-import React, { useState } from "react";
+// components/Surveillance/Surveillance.tsx
+import React, { useState, useEffect, useRef } from "react";
+import { APIURL } from "../../GlobalAPIURL";
 import {
   Camera,
   Radio,
   Clock,
   Target,
-  
   Activity,
-
   ChevronDown,
   Play,
   Pause,
   Maximize2,
-
   User,
   Truck,
-
-  RefreshCw
+  RefreshCw,
+  AlertTriangle,
+  Eye,
+  Layers,
+  Grid,
+  Filter,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 
 // ============================================================
@@ -29,8 +33,40 @@ interface DetectedObject {
   trackId: string;
   threat: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "NORMAL";
   position: { x: number; y: number };
-  bbox: { top: string; left: string; width?: string; height?: string };
+  bbox: {
+    x1: number;
+    y1: number;
+    x2: number;
+    y2: number;
+  };
   status: "ACTIVE" | "TRACKING" | "LOST";
+}
+
+interface LiveCamera {
+  camera: string;
+  source: string;
+  object_present: boolean;
+  last_detection: string | null;
+  seconds_since_detection: number;
+  visible: boolean;
+  objects: {
+    category: string;
+    class: string;
+    confidence: number;
+    bounding_box: {
+      x1: number;
+      y1: number;
+      x2: number;
+      y2: number;
+    };
+  }[];
+}
+
+interface LiveDetectionResponse {
+  system: string;
+  updated_at: string;
+  no_object_timeout: number;
+  cameras: Record<string, LiveCamera>;
 }
 
 interface CameraFeed {
@@ -40,74 +76,146 @@ interface CameraFeed {
   status: "ACTIVE" | "OFFLINE" | "RECORDING";
   resolution: string;
   fps: number;
+  threatLevel?: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "NORMAL";
+  videoSrc?: string;
 }
 
 // ============================================================
 // MOCK DATA
 // ============================================================
+// Import videos
+import cam1Video from "../../../public/videos/cam1.mp4";
+import cam2Video from "../../../public/videos/cam2.mp4";
+
 const cameras: CameraFeed[] = [
-  { id: "CAM-01", name: "Sector A - East Gate", sector: "A", status: "ACTIVE", resolution: "1080p", fps: 30 },
-  { id: "CAM-02", name: "Sector B - Main Road", sector: "B", status: "ACTIVE", resolution: "4K", fps: 60 },
-  { id: "CAM-03", name: "Sector C - Checkpoint", sector: "C", status: "ACTIVE", resolution: "1080p", fps: 30 },
-  { id: "CAM-04", name: "Sector D - Perimeter", sector: "D", status: "OFFLINE", resolution: "720p", fps: 15 },
+  {
+    id: "CAM-01",
+    name: "Sector A - East Gate",
+    sector: "A",
+    status: "ACTIVE",
+    resolution: "1080p",
+    fps: 30,
+    threatLevel: "NORMAL",
+    videoSrc: cam1Video,
+  },
+  {
+    id: "CAM-02",
+    name: "Sector B - Main Road",
+    sector: "B",
+    status: "ACTIVE",
+    resolution: "4K",
+    fps: 60,
+    threatLevel: "NORMAL",
+    videoSrc: cam2Video,
+  },
 ];
 
-const detectedObjects: DetectedObject[] = [
-  {
-    id: "OBJ-001",
-    type: "Vehicle",
-    confidence: 94,
-    trackId: "TRK-001",
-    threat: "HIGH",
-    position: { x: 35, y: 42 },
-    bbox: { top: "35%", left: "25%" },
-    status: "TRACKING",
-  },
-  {
-    id: "OBJ-002",
-    type: "Person",
-    confidence: 91,
-    trackId: "TRK-002",
-    threat: "NORMAL",
-    position: { x: 55, y: 58 },
-    bbox: { top: "55%", left: "50%" },
-    status: "ACTIVE",
-  },
-  {
-    id: "OBJ-003",
-    type: "Vehicle",
-    confidence: 78,
-    trackId: "TRK-003",
-    threat: "MEDIUM",
-    position: { x: 72, y: 25 },
-    bbox: { top: "20%", left: "70%" },
-    status: "TRACKING",
-  },
-  {
-    id: "OBJ-004",
-    type: "Person",
-    confidence: 65,
-    trackId: "TRK-004",
-    threat: "LOW",
-    position: { x: 15, y: 70 },
-    bbox: { top: "65%", left: "12%" },
-    status: "LOST",
-  },
-];
 
 // ============================================================
 // COMPONENT
 // ============================================================
 const Surveillance: React.FC = () => {
+  const [liveData, setLiveData] = useState<LiveDetectionResponse | null>(null);
+  const [loadingLive, setLoadingLive] = useState(true);
   const [selectedCamera, setSelectedCamera] = useState<string>("CAM-02");
   const [isPlaying, setIsPlaying] = useState(true);
+  const [isMuted, setIsMuted] = useState(true);
   const [selectedObject, setSelectedObject] = useState<string | null>(null);
+  const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
+  const [filterThreat, setFilterThreat] = useState<string>("ALL");
+  const [videoError, setVideoError] = useState<boolean>(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchLiveDetection = async () => {
+      try {
+        const response = await fetch(`http://localhost:8000/api/live`);
+
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
+        }
+
+        const data: LiveDetectionResponse = await response.json();
+
+        if (mounted) {
+          setLiveData(data);
+          setLoadingLive(false);
+        }
+      } catch (error) {
+        console.error("Failed to fetch live detection:", error);
+
+        if (mounted) {
+          setLoadingLive(false);
+        }
+      }
+    };
+
+    fetchLiveDetection();
+
+    const interval = setInterval(
+      fetchLiveDetection,
+      1000
+    );
+
+    return () => {
+      mounted = false;
+      clearInterval(interval);
+    };
+  }, []);
+
+  const liveCameras = cameras.filter((camera) => {
+    const camKey = camera.id === "CAM-01" ? "cam1" : "cam2";
+
+    return liveData?.cameras?.[camKey]?.visible === true;
+  });
+
+  const selectedCamKey =
+    selectedCamera === "CAM-01"
+      ? "cam1"
+      : "cam2";
+
+  const selectedLiveCamera =
+    liveData?.cameras?.[selectedCamKey];
+
+
+
+  const detectedObjects: DetectedObject[] =
+    selectedLiveCamera?.objects?.map((obj, index) => ({
+      id: `${selectedCamera}-${index + 1}`,
+
+      type:
+        obj.category === "Vehicle"
+          ? "Vehicle"
+          : obj.category === "Person"
+            ? "Person"
+            : "Other",
+
+      confidence: Math.round(obj.confidence * 100),
+
+      trackId: `${selectedCamera}-${index + 1}`,
+
+      threat: "NORMAL",
+
+      position: {
+        x: 0,
+        y: 0,
+      },
+
+      bbox: obj.bounding_box,
+
+      status: "ACTIVE",
+    })) || [];
+
+
 
   // ---- COLORS ----
   const colors = {
     bg: "#080D0C",
     surface: "#111A16",
     surfaceLighter: "#1A2A24",
+    surfaceDark: "#0A120E",
     border: "#26352D",
     borderLight: "#354A40",
     textPrimary: "#E6E8E3",
@@ -119,12 +227,59 @@ const Surveillance: React.FC = () => {
     accentBlue: "#4A8C9E",
   };
 
+  const threatColors = {
+    CRITICAL: colors.accentRed,
+    HIGH: colors.accentOrange,
+    MEDIUM: colors.accentAmber,
+    LOW: colors.accentBlue,
+    NORMAL: colors.accentGreen,
+  };
+
+  // ---- Video control ----
+  useEffect(() => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.play().catch(() => {
+          // Auto-play was prevented, user needs to interact
+          setIsPlaying(false);
+        });
+      } else {
+        videoRef.current.pause();
+      }
+    }
+  }, [isPlaying, selectedCamera]);
+
+  useEffect(() => {
+    // Reset video error when camera changes
+    setVideoError(false);
+    if (videoRef.current) {
+      videoRef.current.load();
+    }
+  }, [selectedCamera]);
+
+  const handleVideoError = () => {
+    setVideoError(true);
+    console.error(`Failed to load video for camera: ${selectedCamera}`);
+  };
+
+  const togglePlay = () => {
+    setIsPlaying(!isPlaying);
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    if (videoRef.current) {
+      videoRef.current.muted = !isMuted;
+    }
+  };
+
   // ---- STYLES ----
   const containerStyle: React.CSSProperties = {
     background: colors.bg,
     padding: "1.5rem",
     minHeight: "calc(100vh - 82px)",
-    fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    fontFamily:
+      '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     color: colors.textPrimary,
   };
 
@@ -148,6 +303,9 @@ const Surveillance: React.FC = () => {
     fontSize: "20px",
     fontWeight: 700,
     color: colors.textPrimary,
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
   };
 
   const headerSubtitleStyle: React.CSSProperties = {
@@ -174,10 +332,55 @@ const Surveillance: React.FC = () => {
     fontSize: "12px",
   };
 
+  const viewToggleStyle = (active: boolean): React.CSSProperties => ({
+    background: active ? colors.surfaceLighter : "transparent",
+    border: `1px solid ${active ? colors.accentGreen : colors.border}`,
+    borderRadius: "4px",
+    padding: "0.3rem 0.6rem",
+    color: active ? colors.textPrimary : colors.textSecondary,
+    cursor: "pointer",
+    display: "flex",
+    alignItems: "center",
+    gap: "0.3rem",
+    fontSize: "11px",
+    fontFamily: "inherit",
+    transition: "all 0.15s",
+  });
+
+  // ---- STATS ----
+  const statsGridStyle: React.CSSProperties = {
+    display: "grid",
+    gridTemplateColumns: "repeat(4, 1fr)",
+    gap: "0.75rem",
+    marginBottom: "1.5rem",
+  };
+
+  const statCardStyle: React.CSSProperties = {
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    padding: "0.75rem",
+    display: "flex",
+    flexDirection: "column",
+  };
+
+  const statValueStyle: React.CSSProperties = {
+    fontSize: "20px",
+    fontWeight: 700,
+    color: colors.textPrimary,
+  };
+
+  const statLabelStyle: React.CSSProperties = {
+    fontSize: "9px",
+    fontWeight: 500,
+    color: colors.textSecondary,
+    letterSpacing: "0.5px",
+    textTransform: "uppercase",
+  };
+
   // ---- MAIN GRID ----
   const mainGridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "2fr 1fr",
+    gridTemplateColumns: "2.5fr 1.5fr",
     gap: "1rem",
     marginBottom: "1.5rem",
   };
@@ -198,7 +401,7 @@ const Surveillance: React.FC = () => {
   };
 
   const panelTitleStyle: React.CSSProperties = {
-    fontSize: "11px",
+    fontSize: "10px",
     fontWeight: 600,
     color: colors.textSecondary,
     letterSpacing: "0.8px",
@@ -208,21 +411,41 @@ const Surveillance: React.FC = () => {
   // ---- SURVEILLANCE FEED ----
   const feedContainerStyle: React.CSSProperties = {
     position: "relative",
-    background: "#0A1210",
+    background: colors.surfaceDark,
     borderRadius: "4px",
-    height: "420px",
+    height: "450px",
     overflow: "hidden",
     border: `1px solid ${colors.borderLight}`,
+  };
+
+  const videoStyle: React.CSSProperties = {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+    background: colors.surfaceDark,
+  };
+
+  const videoErrorStyle: React.CSSProperties = {
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    background: colors.surfaceDark,
+    color: colors.textSecondary,
+    gap: "0.5rem",
   };
 
   const feedSceneStyle: React.CSSProperties = {
     position: "relative",
     width: "100%",
     height: "100%",
-    background: "radial-gradient(ellipse at center, #1A2A24 0%, #0A1210 100%)",
   };
 
-  // Ground/terrain
   const groundStyle: React.CSSProperties = {
     position: "absolute",
     bottom: 0,
@@ -231,9 +454,9 @@ const Surveillance: React.FC = () => {
     height: "35%",
     background: "linear-gradient(180deg, transparent, #0F1A16)",
     borderTop: `1px solid ${colors.borderLight}`,
+    pointerEvents: "none",
   };
 
-  // Road
   const roadStyle: React.CSSProperties = {
     position: "absolute",
     bottom: "25%",
@@ -243,9 +466,9 @@ const Surveillance: React.FC = () => {
     background: colors.borderLight,
     opacity: 0.5,
     borderRadius: "2px",
+    pointerEvents: "none",
   };
 
-  // Road markings
   const roadMarkingStyle: React.CSSProperties = {
     position: "absolute",
     bottom: "25.3%",
@@ -255,18 +478,24 @@ const Surveillance: React.FC = () => {
     background: colors.textSecondary,
     opacity: 0.2,
     borderTop: `2px dashed ${colors.borderLight}`,
+    pointerEvents: "none",
   };
 
-  // Buildings/structures
   const structureStyle: React.CSSProperties = {
     position: "absolute",
     background: "rgba(26, 42, 36, 0.6)",
     border: `1px solid ${colors.borderLight}`,
     borderRadius: "2px",
+    pointerEvents: "none",
   };
 
-  // BBox style
-  const bboxStyle = (color: string, top: string, left: string, width?: string, height?: string): React.CSSProperties => ({
+  const bboxStyle = (
+    color: string,
+    top: string,
+    left: string,
+    width?: string,
+    height?: string
+  ): React.CSSProperties => ({
     position: "absolute",
     border: `2px solid ${color}`,
     background: `${color}15`,
@@ -282,6 +511,8 @@ const Surveillance: React.FC = () => {
     minWidth: "80px",
     backdropFilter: "blur(4px)",
     cursor: "pointer",
+    boxShadow: color === colors.accentRed ? `0 0 20px ${color}44` : "none",
+    pointerEvents: "auto",
   });
 
   const bboxLabelStyle: React.CSSProperties = {
@@ -290,8 +521,12 @@ const Surveillance: React.FC = () => {
     lineHeight: 1.3,
   };
 
-  // Tracking line
-  const trackLineStyle = (top: string, left: string, width: string, transform?: string): React.CSSProperties => ({
+  const trackLineStyle = (
+    top: string,
+    left: string,
+    width: string,
+    transform?: string
+  ): React.CSSProperties => ({
     position: "absolute",
     border: `1px dashed ${colors.accentAmber}`,
     opacity: 0.3,
@@ -368,25 +603,35 @@ const Surveillance: React.FC = () => {
     gap: "0.25rem",
     fontSize: "10px",
     transition: "background 0.15s",
+    fontFamily: "inherit",
   };
 
   // ---- OBJECT LIST ----
   const objectListStyle: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
-    gap: "0.5rem",
+    gap: "0.4rem",
+    maxHeight: "380px",
+    overflowY: "auto",
   };
 
   const objectItemStyle = (threat: string): React.CSSProperties => {
     let borderColor = colors.border;
-    if (threat === "CRITICAL") borderColor = colors.accentRed;
-    else if (threat === "HIGH") borderColor = colors.accentOrange;
-    else if (threat === "MEDIUM") borderColor = colors.accentAmber;
-    else if (threat === "LOW") borderColor = colors.accentBlue;
+    let bg = colors.surfaceLighter;
+    if (threat === "CRITICAL") {
+      borderColor = colors.accentRed;
+      bg = `${colors.accentRed}10`;
+    } else if (threat === "HIGH") {
+      borderColor = colors.accentOrange;
+      bg = `${colors.accentOrange}10`;
+    } else if (threat === "MEDIUM") {
+      borderColor = colors.accentAmber;
+      bg = `${colors.accentAmber}10`;
+    }
     return {
-      padding: "0.5rem 0.75rem",
+      padding: "0.4rem 0.75rem",
       borderLeft: `3px solid ${borderColor}`,
-      background: colors.surfaceLighter,
+      background: bg,
       cursor: "pointer",
       transition: "background 0.15s",
       display: "flex",
@@ -401,68 +646,167 @@ const Surveillance: React.FC = () => {
     return <Target size={14} />;
   };
 
-  // ---- STATS ----
-  const statsGridStyle: React.CSSProperties = {
+  const objectThreatBadge = (threat: string): React.CSSProperties => {
+    const color = threatColors[threat as keyof typeof threatColors] || colors.textSecondary;
+    return {
+      fontSize: "8px",
+      fontWeight: 700,
+      color,
+      padding: "0.1rem 0.4rem",
+      border: `1px solid ${color}44`,
+      borderRadius: "2px",
+    };
+  };
+
+  // ---- CAMERA GRID ----
+  const cameraGridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "repeat(4, 1fr)",
+    gridTemplateColumns: "repeat(3, 1fr)",
     gap: "0.75rem",
-    marginBottom: "1.5rem",
   };
 
-  const statCardStyle: React.CSSProperties = {
-    background: colors.surface,
-    border: `1px solid ${colors.border}`,
-    padding: "0.75rem",
+  const cameraCardStyle = (
+    isSelected: boolean,
+    status: string,
+    threatLevel?: string
+  ): React.CSSProperties => {
+    let borderColor = colors.border;
+    if (isSelected) borderColor = colors.accentGreen;
+    else if (threatLevel === "CRITICAL") borderColor = colors.accentRed;
+    else if (threatLevel === "HIGH") borderColor = colors.accentOrange;
+    else if (threatLevel === "MEDIUM") borderColor = colors.accentAmber;
+    return {
+      background: colors.surface,
+      border: `2px solid ${borderColor}`,
+      padding: "0.6rem",
+      cursor: "pointer",
+      transition: "all 0.15s",
+      opacity: status === "OFFLINE" ? 0.5 : 1,
+    };
+  };
+
+  const cameraThreatIndicator = (threatLevel?: string): React.CSSProperties => {
+    const color = threatLevel ? threatColors[threatLevel as keyof typeof threatColors] : colors.textSecondary;
+    return {
+      width: "8px",
+      height: "8px",
+      borderRadius: "50%",
+      background: color,
+      display: "inline-block",
+      marginLeft: "0.25rem",
+      boxShadow: threatLevel === "CRITICAL" ? `0 0 12px ${color}` : "none",
+    };
+  };
+
+  // ---- FILTERS ----
+  const filterBarStyle: React.CSSProperties = {
     display: "flex",
-    flexDirection: "column",
+    gap: "0.5rem",
+    marginBottom: "0.75rem",
+    flexWrap: "wrap",
   };
 
-  const statValueStyle: React.CSSProperties = {
-    fontSize: "20px",
-    fontWeight: 700,
-    color: colors.textPrimary,
-  };
-
-  const statLabelStyle: React.CSSProperties = {
-    fontSize: "9px",
-    fontWeight: 500,
+  const filterSelectStyle: React.CSSProperties = {
+    background: colors.surfaceLighter,
+    border: `1px solid ${colors.border}`,
     color: colors.textSecondary,
-    letterSpacing: "0.5px",
-    textTransform: "uppercase",
+    padding: "0.2rem 0.5rem",
+    borderRadius: "4px",
+    fontSize: "10px",
+    fontFamily: "inherit",
+    outline: "none",
+    cursor: "pointer",
   };
 
   // ---- KEYFRAMES ----
-  React.useEffect(() => {
+  useEffect(() => {
     const style = document.createElement("style");
     style.textContent = `
       @keyframes pulse-dot {
         0%, 100% { opacity: 1; }
         50% { opacity: 0.3; }
       }
+      @keyframes pulse-critical {
+        0%, 100% { box-shadow: 0 0 0 0 rgba(217, 83, 79, 0.4); }
+        50% { box-shadow: 0 0 0 8px rgba(217, 83, 79, 0); }
+      }
     `;
     document.head.appendChild(style);
-    return () => {document.head.removeChild(style)};
+    return () => {
+      document.head.removeChild(style);
+    };
   }, []);
 
   // ============================================================
   // RENDER
   // ============================================================
+  const selectedCam = cameras.find((c) => c.id === selectedCamera);
+  const filteredObjects = detectedObjects.filter((obj) => {
+    if (filterThreat === "ALL") return true;
+    return obj.threat === filterThreat;
+  });
+
+  const criticalCount = detectedObjects.filter((o) => o.threat === "CRITICAL").length;
+  const highCount = detectedObjects.filter((o) => o.threat === "HIGH").length;
+  const activeCount = detectedObjects.filter((o) => o.status === "ACTIVE" || o.status === "TRACKING").length;
+
   return (
     <div style={containerStyle}>
       {/* HEADER */}
       <div style={headerStyle}>
         <div style={headerLeftStyle}>
-          <div style={headerTitleStyle}>Surveillance</div>
+          <div style={headerTitleStyle}>
+            <Camera size={20} color={colors.accentGreen} />
+            Surveillance
+            {selectedCam?.threatLevel === "CRITICAL" && (
+              <span
+                style={{
+                  fontSize: "10px",
+                  fontWeight: 700,
+                  color: colors.accentRed,
+                  background: `${colors.accentRed}15`,
+                  padding: "0.1rem 0.6rem",
+                  borderRadius: "12px",
+                  marginLeft: "0.5rem",
+                }}
+              >
+                <AlertTriangle size={12} style={{ display: "inline", marginRight: "4px" }} />
+                CRITICAL
+              </span>
+            )}
+          </div>
           <div style={headerSubtitleStyle}>
-            <Camera size={14} style={{ display: "inline", marginRight: "6px" }} />
-            Real-time detection & tracking
+            Real-time detection & tracking • {detectedObjects.length} objects detected
           </div>
         </div>
         <div style={headerRightStyle}>
           <div style={cameraSelectorStyle}>
-            <Radio size={14} color={colors.accentGreen} />
+            <Radio
+              size={14}
+              color={
+                selectedCam?.status === "ACTIVE"
+                  ? colors.accentGreen
+                  : selectedCam?.status === "RECORDING"
+                    ? colors.accentAmber
+                    : colors.accentRed
+              }
+            />
             <span>{selectedCamera}</span>
             <ChevronDown size={14} />
+          </div>
+          <div style={{ display: "flex", gap: "0.25rem" }}>
+            <button
+              style={viewToggleStyle(viewMode === "grid")}
+              onClick={() => setViewMode("grid")}
+            >
+              <Grid size={14} />
+            </button>
+            <button
+              style={viewToggleStyle(viewMode === "list")}
+              onClick={() => setViewMode("list")}
+            >
+              <Layers size={14} />
+            </button>
           </div>
           <div style={{ ...controlButtonStyle, background: "transparent" }}>
             <RefreshCw size={14} />
@@ -473,20 +817,20 @@ const Surveillance: React.FC = () => {
       {/* STATS */}
       <div style={statsGridStyle}>
         <div style={statCardStyle}>
-          <span style={statValueStyle}>47</span>
+          <span style={statValueStyle}>{detectedObjects.length}</span>
           <span style={statLabelStyle}>Objects Detected</span>
         </div>
         <div style={statCardStyle}>
-          <span style={statValueStyle}>12</span>
+          <span style={statValueStyle}>{activeCount}</span>
           <span style={statLabelStyle}>Active Tracks</span>
         </div>
-        <div style={statCardStyle}>
-          <span style={statValueStyle}>8</span>
-          <span style={statLabelStyle}>Threats</span>
+        <div style={{ ...statCardStyle, borderColor: colors.accentRed }}>
+          <span style={{ ...statValueStyle, color: colors.accentRed }}>{criticalCount}</span>
+          <span style={statLabelStyle}>Critical Threats</span>
         </div>
-        <div style={statCardStyle}>
-          <span style={statValueStyle}>98%</span>
-          <span style={statLabelStyle}>Detection Accuracy</span>
+        <div style={{ ...statCardStyle, borderColor: colors.accentOrange }}>
+          <span style={{ ...statValueStyle, color: colors.accentOrange }}>{highCount}</span>
+          <span style={statLabelStyle}>High Threats</span>
         </div>
       </div>
 
@@ -496,8 +840,8 @@ const Surveillance: React.FC = () => {
         <div style={panelStyle}>
           <div style={panelHeaderStyle}>
             <span style={panelTitleStyle}>
-              <Camera size={14} style={{ display: "inline", marginRight: "6px" }} />
-              Live Feed • {selectedCamera}
+              <Eye size={14} style={{ display: "inline", marginRight: "6px" }} />
+              Live Feed • {selectedCamera} • {selectedCam?.name}
             </span>
             <span style={{ fontSize: "10px", color: colors.textSecondary }}>
               <Clock size={12} style={{ display: "inline", marginRight: "4px" }} />
@@ -506,69 +850,136 @@ const Surveillance: React.FC = () => {
           </div>
           <div style={feedContainerStyle}>
             <div style={feedSceneStyle}>
-              {/* Terrain */}
+              {/* Video Feed */}
+              {selectedCam?.videoSrc && !videoError ? (
+                <video
+                  ref={videoRef}
+                  src={selectedCam.videoSrc}
+                  style={videoStyle}
+                  autoPlay={isPlaying}
+                  muted={isMuted}
+                  loop
+                  playsInline
+                  onError={handleVideoError}
+                />
+              ) : (
+                <div style={videoErrorStyle}>
+                  <Camera size={48} opacity={0.3} />
+
+                  <span>
+                    {videoError
+                      ? "Video unavailable"
+                      : "No video feed"}
+                  </span>
+
+                  <span style={{ fontSize: "11px" }}>
+                    Camera: {selectedCamera}
+                  </span>
+                </div>
+              )}
+
+              {/* Terrain overlay (semi-transparent) */}
               <div style={groundStyle} />
               <div style={roadStyle} />
               <div style={roadMarkingStyle} />
 
-              {/* Structures */}
               <div style={{ ...structureStyle, top: "10%", left: "5%", width: "12%", height: "15%" }} />
               <div style={{ ...structureStyle, top: "8%", right: "8%", width: "10%", height: "12%" }} />
               <div style={{ ...structureStyle, bottom: "40%", left: "2%", width: "8%", height: "10%" }} />
-
-              {/* Trees */}
               <div style={{ ...structureStyle, top: "15%", left: "20%", width: "3%", height: "8%", borderRadius: "50%" }} />
               <div style={{ ...structureStyle, top: "12%", right: "25%", width: "4%", height: "10%", borderRadius: "50%" }} />
 
-              {/* BBox - Vehicle */}
-              <div
-                style={bboxStyle(colors.accentOrange, "35%", "25%", "120px", "60px")}
-                onClick={() => setSelectedObject("OBJ-001")}
-              >
-                <div style={bboxLabelStyle}>
-                  <span style={{ fontWeight: 700 }}>
-                    {objectTypeIcon("Vehicle")} VEHICLE #04
-                  </span>
-                  <span style={{ fontSize: "8px", color: colors.textSecondary }}>94% • TRK-001</span>
-                  <span style={{ fontSize: "8px", color: colors.accentOrange }}>THREAT: HIGH</span>
-                </div>
-              </div>
+              {/* Critical Object - Highlighted */}
+              {detectedObjects
+                .filter((o) => o.threat === "CRITICAL")
+                .map((obj) => (
+                  <div
+                    key={obj.id}
+                    style={{
+                      ...bboxStyle(
+                        colors.accentRed,
+                        `${(obj.bbox.y1 / 1080) * 100}%`,
+                        `${(obj.bbox.x1 / 1920) * 100}%`,
+                        `${((obj.bbox.x2 - obj.bbox.x1) / 1920) * 100}%`,
+                        `${((obj.bbox.y2 - obj.bbox.y1) / 1080) * 100}%`
+                      ),
+                      borderColor: colors.accentRed,
+                      animation: "pulse-critical 2s infinite",
+                    }}
+                    onClick={() => setSelectedObject(obj.id)}
+                  >
+                    <div style={bboxLabelStyle}>
+                      <span style={{ fontWeight: 700 }}>
+                        {objectTypeIcon(obj.type)} {obj.type} • {obj.id}
+                      </span>
+                      <span style={{ fontSize: "8px", color: colors.textSecondary }}>
+                        {obj.confidence}% • {obj.trackId}
+                      </span>
+                      <span style={{ fontSize: "8px", color: colors.accentRed }}>
+                        CRITICAL THREAT
+                      </span>
+                    </div>
+                  </div>
+                ))}
 
-              {/* BBox - Person */}
-              <div
-                style={bboxStyle(colors.accentGreen, "55%", "50%", "100px", "50px")}
-                onClick={() => setSelectedObject("OBJ-002")}
-              >
-                <div style={bboxLabelStyle}>
-                  <span style={{ fontWeight: 700 }}>
-                    {objectTypeIcon("Person")} PERSON #12
-                  </span>
-                  <span style={{ fontSize: "8px", color: colors.textSecondary }}>91% • TRK-002</span>
-                  <span style={{ fontSize: "8px", color: colors.accentGreen }}>NORMAL</span>
-                </div>
-              </div>
-
-              {/* BBox - Vehicle 2 */}
-              <div
-                style={bboxStyle(colors.accentAmber, "20%", "70%", "110px", "55px")}
-                onClick={() => setSelectedObject("OBJ-003")}
-              >
-                <div style={bboxLabelStyle}>
-                  <span style={{ fontWeight: 700 }}>
-                    {objectTypeIcon("Vehicle")} VEHICLE #03
-                  </span>
-                  <span style={{ fontSize: "8px", color: colors.textSecondary }}>78% • TRK-003</span>
-                  <span style={{ fontSize: "8px", color: colors.accentAmber }}>MEDIUM</span>
-                </div>
-              </div>
+              {/* Other Objects */}
+              {detectedObjects
+                .filter((o) => o.threat !== "CRITICAL")
+                .map((obj) => {
+                  const color =
+                    obj.threat === "HIGH"
+                      ? colors.accentOrange
+                      : obj.threat === "MEDIUM"
+                        ? colors.accentAmber
+                        : obj.threat === "LOW"
+                          ? colors.accentBlue
+                          : colors.accentGreen;
+                  return (
+                    <div
+                      key={obj.id}
+                      style={bboxStyle(
+                        color,
+                        `${(obj.bbox.y1 / 1080) * 100}%`,
+                        `${(obj.bbox.x1 / 1920) * 100}%`,
+                        `${((obj.bbox.x2 - obj.bbox.x1) / 1920) * 100}%`,
+                        `${((obj.bbox.y2 - obj.bbox.y1) / 1080) * 100}%`
+                      )}
+                      onClick={() => setSelectedObject(obj.id)}
+                    >
+                      <div style={bboxLabelStyle}>
+                        <span style={{ fontWeight: 700 }}>
+                          {objectTypeIcon(obj.type)} {obj.type} • {obj.id}
+                        </span>
+                        <span style={{ fontSize: "8px", color: colors.textSecondary }}>
+                          {obj.confidence}% • {obj.trackId}
+                        </span>
+                        <span style={{ fontSize: "8px", color }}>{obj.threat}</span>
+                      </div>
+                    </div>
+                  );
+                })}
 
               {/* Tracking lines */}
-              <div style={trackLineStyle("40%", "30%", "60px", "rotate(35deg)")} />
-              <div style={trackLineStyle("60%", "52%", "40px", "rotate(-20deg)")} />
-              <div style={trackLineStyle("25%", "75%", "50px", "rotate(45deg)")} />
-
-              {/* Path prediction */}
-              <div style={{ ...trackLineStyle("35%", "20%", "80px", "rotate(10deg)"), opacity: 0.15, border: `1px dotted ${colors.accentAmber}` }} />
+              {detectedObjects.map((obj) => (
+                <div
+                  key={`track-${obj.id}`}
+                  style={{
+                    ...trackLineStyle(
+                      `${(obj.bbox.y1 / 1080) * 100 + 5}%`,
+                      `${(obj.bbox.x1 / 1920) * 100 + 10}%`,
+                      "60px",
+                      "rotate(35deg)"
+                    ),
+                    borderColor:
+                      obj.threat === "CRITICAL"
+                        ? colors.accentRed
+                        : obj.threat === "HIGH"
+                          ? colors.accentOrange
+                          : colors.accentAmber,
+                    opacity: obj.threat === "CRITICAL" ? 0.6 : 0.3,
+                  }}
+                />
+              ))}
 
               {/* Feed Overlay */}
               <div style={feedOverlayStyle}>
@@ -576,26 +987,56 @@ const Surveillance: React.FC = () => {
                   <div style={feedRecStyle}>
                     <span style={recDotStyle} />
                     <span>REC</span>
+                    {selectedCam?.threatLevel === "CRITICAL" && (
+                      <span
+                        style={{
+                          color: colors.accentRed,
+                          fontWeight: 700,
+                          fontSize: "9px",
+                          marginLeft: "0.5rem",
+                        }}
+                      >
+                        ⚠ CRITICAL
+                      </span>
+                    )}
                   </div>
                   <div style={{ display: "flex", gap: "1rem" }}>
-                    <span>SECTOR B</span>
+                    <span>SECTOR {selectedCam?.sector}</span>
                     <span>|</span>
-                    <span>CAM-04</span>
+                    <span>{selectedCamera}</span>
                     <span>|</span>
-                    <span>LOCAL FEED</span>
+                    <span>
+                      {selectedCam?.status === "ACTIVE"
+                        ? "LIVE"
+                        : selectedCam?.status === "RECORDING"
+                          ? "RECORDING"
+                          : "OFFLINE"}
+                    </span>
                   </div>
                 </div>
 
                 <div style={feedBottomBarStyle}>
                   <div style={{ display: "flex", gap: "0.75rem" }}>
-                    <span>OBJECTS: 04</span>
+                    <span>OBJECTS: {detectedObjects.length}</span>
                     <span>•</span>
-                    <span>TRACKING: 03</span>
+                    <span>TRACKING: {detectedObjects.filter((o) => o.status === "TRACKING").length}</span>
                     <span>•</span>
-                    <span>THREATS: 02</span>
+                    <span>
+                      THREATS: {detectedObjects.filter((o) => o.threat !== "NORMAL").length}
+                    </span>
                   </div>
                   <div style={feedControlsStyle}>
-                    <button style={controlButtonStyle} onClick={() => setIsPlaying(!isPlaying)}>
+                    <button
+                      style={controlButtonStyle}
+                      onClick={toggleMute}
+                      title={isMuted ? "Unmute" : "Mute"}
+                    >
+                      {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                    </button>
+                    <button
+                      style={controlButtonStyle}
+                      onClick={togglePlay}
+                    >
                       {isPlaying ? <Pause size={14} /> : <Play size={14} />}
                     </button>
                     <button style={controlButtonStyle}>
@@ -613,7 +1054,7 @@ const Surveillance: React.FC = () => {
           <div style={panelHeaderStyle}>
             <span style={panelTitleStyle}>
               <Target size={14} style={{ display: "inline", marginRight: "6px" }} />
-              Detected Objects
+              Detected Objects • Prioritized
             </span>
             <span style={{ fontSize: "10px", color: colors.textSecondary }}>
               <Activity size={12} style={{ display: "inline", marginRight: "4px" }} />
@@ -621,53 +1062,122 @@ const Surveillance: React.FC = () => {
             </span>
           </div>
 
+          {/* Filters */}
+          <div style={filterBarStyle}>
+            <select
+              style={filterSelectStyle}
+              value={filterThreat}
+              onChange={(e) => setFilterThreat(e.target.value)}
+            >
+              <option value="ALL">All Threats</option>
+              <option value="CRITICAL">Critical</option>
+              <option value="HIGH">High</option>
+              <option value="MEDIUM">Medium</option>
+              <option value="LOW">Low</option>
+              <option value="NORMAL">Normal</option>
+            </select>
+            <span style={{ fontSize: "9px", color: colors.textSecondary }}>
+              <Filter size={10} style={{ display: "inline", marginRight: "4px" }} />
+              {filteredObjects.length} results
+            </span>
+          </div>
+
           <div style={objectListStyle}>
-            {detectedObjects.map((obj) => (
-              <div
-                key={obj.id}
-                style={objectItemStyle(obj.threat)}
-                onClick={() => setSelectedObject(obj.id)}
-              >
-                <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                  {objectTypeIcon(obj.type)}
-                  <div>
-                    <div style={{ fontSize: "12px", fontWeight: 600 }}>
-                      {obj.type} • {obj.id}
+            {filteredObjects
+              .sort((a, b) => {
+                const order = { CRITICAL: 0, HIGH: 1, MEDIUM: 2, LOW: 3, NORMAL: 4 };
+                return (order[a.threat] || 5) - (order[b.threat] || 5);
+              })
+              .map((obj) => (
+                <div
+                  key={obj.id}
+                  style={objectItemStyle(obj.threat)}
+                  onClick={() => setSelectedObject(obj.id)}
+                >
+                  <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                    {objectTypeIcon(obj.type)}
+                    <div>
+                      <div style={{ fontSize: "12px", fontWeight: 600 }}>
+                        {obj.type} • {obj.id}
+                      </div>
+                      <div style={{ fontSize: "9px", color: colors.textSecondary }}>
+                        Track: {obj.trackId} • {obj.status}
+                      </div>
                     </div>
-                    <div style={{ fontSize: "9px", color: colors.textSecondary }}>
-                      Track: {obj.trackId} • {obj.status}
+                  </div>
+                  <div style={{ textAlign: "right" }}>
+                    <div
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 700,
+                        color:
+                          obj.threat === "CRITICAL"
+                            ? colors.accentRed
+                            : obj.threat === "HIGH"
+                              ? colors.accentOrange
+                              : obj.threat === "MEDIUM"
+                                ? colors.accentAmber
+                                : colors.accentGreen,
+                      }}
+                    >
+                      {obj.confidence}%
                     </div>
+                    <div style={objectThreatBadge(obj.threat)}>{obj.threat}</div>
                   </div>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div style={{ fontSize: "13px", fontWeight: 700, color: colors.accentGreen }}>
-                    {obj.confidence}%
-                  </div>
-                  <div style={{ fontSize: "8px", color: colors.textSecondary }}>
-                    {obj.threat}
-                  </div>
-                </div>
-              </div>
-            ))}
+              ))}
           </div>
 
           {selectedObject && (
-            <div style={{
-              marginTop: "0.75rem",
-              padding: "0.5rem 0.75rem",
-              background: colors.surfaceLighter,
-              border: `1px solid ${colors.border}`,
-              borderRadius: "4px",
-            }}>
-              <div style={{ fontSize: "10px", fontWeight: 600, color: colors.textSecondary, marginBottom: "0.25rem" }}>
+            <div
+              style={{
+                marginTop: "0.75rem",
+                padding: "0.5rem 0.75rem",
+                background: colors.surfaceLighter,
+                border: `1px solid ${colors.border}`,
+                borderRadius: "4px",
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "9px",
+                  fontWeight: 600,
+                  color: colors.textSecondary,
+                  marginBottom: "0.25rem",
+                }}
+              >
                 OBJECT DETAILS
               </div>
               <div style={{ fontSize: "11px", color: colors.textPrimary }}>
-                {detectedObjects.find(o => o.id === selectedObject)?.type} • {selectedObject}
+                {detectedObjects.find((o) => o.id === selectedObject)?.type} •{" "}
+                {selectedObject}
               </div>
-              <div style={{ display: "flex", gap: "1rem", marginTop: "0.25rem", fontSize: "9px", color: colors.textSecondary }}>
-                <span>Position: {detectedObjects.find(o => o.id === selectedObject)?.position.x}%, {detectedObjects.find(o => o.id === selectedObject)?.position.y}%</span>
-                <span>Status: {detectedObjects.find(o => o.id === selectedObject)?.status}</span>
+              <div
+                style={{
+                  display: "flex",
+                  gap: "1rem",
+                  marginTop: "0.25rem",
+                  fontSize: "9px",
+                  color: colors.textSecondary,
+                }}
+              >
+                <span>
+                  Position:{" "}
+                  {detectedObjects.find((o) => o.id === selectedObject)?.position
+                    .x}
+                  %,{" "}
+                  {detectedObjects.find((o) => o.id === selectedObject)?.position
+                    .y}
+                  %
+                </span>
+                <span>
+                  Status:{" "}
+                  {detectedObjects.find((o) => o.id === selectedObject)?.status}
+                </span>
+                <span>
+                  Threat:{" "}
+                  {detectedObjects.find((o) => o.id === selectedObject)?.threat}
+                </span>
               </div>
             </div>
           )}
@@ -675,30 +1185,100 @@ const Surveillance: React.FC = () => {
       </div>
 
       {/* CAMERA GRID */}
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "0.75rem" }}>
-        {cameras.map((cam) => (
-          <div
-            key={cam.id}
+      <div style={{ marginTop: "1rem" }}>
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            marginBottom: "0.75rem",
+          }}
+        >
+          <span
             style={{
-              background: colors.surface,
-              border: `1px solid ${cam.id === selectedCamera ? colors.accentGreen : colors.border}`,
-              padding: "0.6rem",
-              cursor: "pointer",
-              transition: "border-color 0.15s",
+              fontSize: "10px",
+              fontWeight: 600,
+              color: colors.textSecondary,
+              letterSpacing: "0.8px",
+              textTransform: "uppercase",
             }}
-            onClick={() => setSelectedCamera(cam.id)}
           >
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.25rem" }}>
-              <span style={{ fontSize: "11px", fontWeight: 600, color: colors.textPrimary }}>{cam.name}</span>
-              <span style={{ fontSize: "8px", color: cam.status === "ACTIVE" ? colors.accentGreen : colors.accentRed }}>
-                {cam.status}
-              </span>
+            <Camera size={14} style={{ display: "inline", marginRight: "6px" }} />
+            Camera Grid • {cameras.length} feeds
+          </span>
+          <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+            <span style={{ color: colors.accentRed }}>● Critical</span>{" "}
+            <span style={{ color: colors.accentOrange, marginLeft: "0.5rem" }}>
+              ● High
+            </span>{" "}
+            <span style={{ color: colors.accentAmber, marginLeft: "0.5rem" }}>
+              ● Medium
+            </span>
+          </span>
+        </div>
+        <div style={cameraGridStyle}>
+          {cameras.map((cam) => (
+            <div
+              key={cam.id}
+              style={cameraCardStyle(
+                selectedCamera === cam.id,
+                cam.status,
+                cam.threatLevel
+              )}
+              onClick={() => setSelectedCamera(cam.id)}
+            >
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "0.25rem",
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: "11px",
+                    fontWeight: 600,
+                    color: colors.textPrimary,
+                  }}
+                >
+                  {cam.name}
+                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                  <span
+                    style={{
+                      fontSize: "8px",
+                      color:
+                        cam.status === "ACTIVE"
+                          ? colors.accentGreen
+                          : cam.status === "RECORDING"
+                            ? colors.accentAmber
+                            : colors.accentRed,
+                    }}
+                  >
+                    {cam.status}
+                  </span>
+                  <span style={cameraThreatIndicator(cam.threatLevel)} />
+                </div>
+              </div>
+              <div style={{ fontSize: "9px", color: colors.textSecondary }}>
+                {cam.id} • {cam.resolution} • {cam.fps}fps
+              </div>
+              {cam.threatLevel && cam.threatLevel !== "NORMAL" && (
+                <div
+                  style={{
+                    fontSize: "8px",
+                    fontWeight: 700,
+                    color: threatColors[cam.threatLevel],
+                    marginTop: "2px",
+                  }}
+                >
+                  {cam.threatLevel} THREAT
+                </div>
+              )}
             </div>
-            <div style={{ fontSize: "9px", color: colors.textSecondary }}>
-              {cam.id} • {cam.resolution} • {cam.fps}fps
-            </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );

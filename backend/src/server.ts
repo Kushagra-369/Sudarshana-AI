@@ -17,7 +17,7 @@ const PORT = process.env.PORT;
 if (!mongoURL) {
   console.error("❌ MONGO_URI not found in environment variables");
   process.exit(1);
-}
+} 
  
 mongoose
   .connect(mongoURL)
@@ -25,7 +25,7 @@ mongoose
     console.log("🌐 MongoDB connected");
 
     console.log(
-      "🔥 Mongo Host:",
+      "🔥 Mongo Host:", 
       mongoose.connection.host
     );
 
