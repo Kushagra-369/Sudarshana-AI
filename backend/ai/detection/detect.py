@@ -1,11 +1,9 @@
 from ultralytics import YOLO
 from pathlib import Path
-import json
-import cv2
 
 
 # ============================================================
-# SUDARSHANA-AI | OBJECT DETECTION
+# SUDARSHANA-AI | OBJECT DETECTION ENGINE
 # ============================================================
 
 # Current file:
@@ -13,30 +11,36 @@ import cv2
 
 CURRENT_DIR = Path(__file__).resolve().parent
 
-IMAGE_PATH = CURRENT_DIR / "test.jpg"
-
-PROJECT_DIR = CURRENT_DIR.parent.parent.parent
-
-OUTPUT_DIR = PROJECT_DIR / "backend" / "runs" / "sudarshana"
-
-OUTPUT_DIR.mkdir(
-    parents=True,
-    exist_ok=True
+PROJECT_DIR = (
+    CURRENT_DIR.parent.parent.parent
 )
 
 MODEL_PATH = PROJECT_DIR / "yolov8n.pt"
 
 
 # ============================================================
+# LOAD MODEL ONCE
+# ============================================================
+
+print("Loading YOLO model...")
+
+model = YOLO(
+    str(MODEL_PATH)
+)
+
+print("YOLO model loaded.")
+
+
+# ============================================================
 # CATEGORY
 # ============================================================
 
-def get_category(class_name):
+def get_category(class_name: str) -> str:
 
     if class_name == "person":
         return "Person"
 
-    elif class_name in [
+    if class_name in [
         "car",
         "truck",
         "bus",
@@ -49,79 +53,46 @@ def get_category(class_name):
 
 
 # ============================================================
-# CHECK INPUT
+# DETECT ONE FRAME
 # ============================================================
 
-if not IMAGE_PATH.exists():
+def detect_frame(frame):
 
-    print()
-    print("ERROR: Input image not found!")
-    print()
-    print(
-        f"Expected image location:"
-    )
-    print(
-        IMAGE_PATH
-    )
-    print()
+    """
+    Run YOLO detection on a single OpenCV frame.
 
-    raise FileNotFoundError(
-        f"Please put test.jpg inside: {CURRENT_DIR}"
-    )
+    Parameters:
+        frame:
+            OpenCV BGR image / numpy array
 
+    Returns:
+        List of detected objects
+    """
 
-# ============================================================
-# LOAD MODEL
-# ============================================================
-
-print()
-print("Loading YOLO model...")
-
-model = YOLO(
-    str(MODEL_PATH)
-)
-
-
-# ============================================================
-# DETECTION
-# ============================================================
-
-print(
-    f"Running detection on: {IMAGE_PATH}"
-)
-
-results = model(
-    str(IMAGE_PATH),
-    conf=0.40,
-    save=False
-)
-
-
-detections = []
-
-
-# ============================================================
-# PROCESS RESULTS
-# ============================================================
-
-for result in results:
-
-    annotated_image = result.plot()
-
-    output_image = (
-        OUTPUT_DIR
-        / "detection_result.jpg"
+    results = model(
+        frame,
+        conf=0.20,
+        imgsz=1280,
+        verbose=False
     )
 
-    cv2.imwrite(
-        str(output_image),
-        annotated_image
-    )
+    result = results[0]
 
+    detections = []
+
+
+    # ========================================================
+    # NO DETECTIONS
+    # ========================================================
 
     if result.boxes is None:
-        continue
 
+        return detections
+
+
+    # ========================================================
+    # PROCESS DETECTIONS
+    # ========================================================
 
     for box in result.boxes:
 
@@ -139,7 +110,7 @@ for result in results:
 
 
         x1, y1, x2, y2 = map(
-            int,
+            float,
             box.xyxy[0].tolist()
         )
 
@@ -170,91 +141,4 @@ for result in results:
         })
 
 
-# ============================================================
-# SAVE JSON
-# ============================================================
-
-output_json = (
-    OUTPUT_DIR
-    / "detection_result.json"
-)
-
-
-result_data = {
-
-    "system":
-        "SUDARSHANA-AI",
-
-    "model":
-        "YOLOv8n",
-
-    "input":
-        str(IMAGE_PATH),
-
-    "total_objects":
-        len(detections),
-
-    "detections":
-        detections
-}
-
-
-with open(
-    output_json,
-    "w",
-    encoding="utf-8"
-) as file:
-
-    json.dump(
-        result_data,
-        file,
-        indent=4
-    )
-
-
-# ============================================================
-# TERMINAL OUTPUT
-# ============================================================
-
-print()
-print("=" * 60)
-
-print(
-    "        SUDARSHANA-AI"
-)
-
-print(
-    "        OBJECT DETECTION"
-)
-
-print("=" * 60)
-
-print(
-    f"Objects detected : {len(detections)}"
-)
-
-print(
-    f"Input image      : {IMAGE_PATH}"
-)
-
-print(
-    f"Annotated image  : {output_image}"
-)
-
-print(
-    f"JSON result      : {output_json}"
-)
-
-print("=" * 60)
-
-
-for detection in detections:
-
-    print(
-        f"{detection['category']} | "
-        f"{detection['class']} | "
-        f"Confidence: "
-        f"{detection['confidence']}"
-    )
-
-print()
+    return detections

@@ -1,49 +1,33 @@
 {
     "system": "SUDARSHANA-AI",
-    "updated_at": "2026-08-23T00:12:09.122013",
+    "updated_at": "2026-08-23T01:32:43.475262",
     "no_object_timeout": 10,
     "cameras": {
         "cam1": {
             "camera": "cam1",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/cars.mp4",
-            "object_present": true,
-            "last_detection": "2026-08-23T00:12:09.116220",
-            "seconds_since_detection": 0,
-            "visible": true,
-            "objects": [
-                {
-                    "category": "Vehicle",
-                    "class": "car",
-                    "confidence": 0.702,
-                    "bounding_box": {
-                        "x1": 663,
-                        "y1": 318,
-                        "x2": 1054,
-                        "y2": 502
-                    }
-                }
-            ]
+            "object_present": false,
+            "last_detection": "2026-08-23T01:32:43.473516",
+            "seconds_since_detection": 0.0,
+            "visible": false,
+            "objects": [],
+            "frame": 116,
+            "fps": 26.698092993357616,
+            "video_time": 4.34,
+            "status": "ENDED"
         },
         "cam2": {
             "camera": "cam2",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/people.mp4",
-            "object_present": true,
-            "last_detection": "2026-08-23T00:11:39.156782",
-            "seconds_since_detection": 0,
-            "visible": true,
-            "objects": [
-                {
-                    "category": "Person",
-                    "class": "person",
-                    "confidence": 0.234,
-                    "bounding_box": {
-                        "x1": 680,
-                        "y1": 449,
-                        "x2": 688,
-                        "y2": 462
-                    }
-                }
-            ]
+            "object_present": false,
+            "last_detection": "2026-08-23T01:32:43.472035",
+            "seconds_since_detection": 0.0,
+            "visible": false,
+            "objects": [],
+            "frame": 114,
+            "fps": 25.379915400281998,
+            "video_time": 4.49,
+            "status": "ENDED"
         }
     }
 }
