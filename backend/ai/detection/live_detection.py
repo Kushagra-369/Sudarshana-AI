@@ -41,7 +41,7 @@ LIVE_STATUS_FILE = (
 # SETTINGS
 # ============================================================
 
-CONFIDENCE_THRESHOLD = 0.40
+CONFIDENCE_THRESHOLD = 0.20
 NO_OBJECT_TIMEOUT = 10
 
 
@@ -120,6 +120,10 @@ def save_live_state():
 # PROCESS ONE CAMERA
 # ============================================================
 
+# ============================================================
+# PROCESS ONE CAMERA
+# ============================================================
+
 def process_camera(camera_name, video_path):
 
     print(
@@ -134,11 +138,9 @@ def process_camera(camera_name, video_path):
 
         return
 
-
     cap = cv2.VideoCapture(
         str(video_path)
     )
-
 
     if not cap.isOpened():
 
@@ -148,14 +150,11 @@ def process_camera(camera_name, video_path):
 
         return
 
-
     model = YOLO(
         str(MODEL_PATH)
     )
 
-
     frame_number = 0
-
 
     while True:
 
@@ -169,17 +168,17 @@ def process_camera(camera_name, video_path):
 
             break
 
-
         frame_number += 1
 
 
-        # ----------------------------------------------------
-        # DETECTION
-        # ----------------------------------------------------
+        # ====================================================
+        # YOLO DETECTION
+        # ====================================================
 
         results = model(
             frame,
             conf=CONFIDENCE_THRESHOLD,
+            imgsz=1280,
             verbose=False
         )
 
@@ -187,6 +186,10 @@ def process_camera(camera_name, video_path):
 
         detected_objects = []
 
+
+        # ====================================================
+        # PROCESS DETECTED OBJECTS
+        # ====================================================
 
         if result.boxes is not None:
 
@@ -237,6 +240,47 @@ def process_camera(camera_name, video_path):
                 })
 
 
+        # ====================================================
+        # DEBUG RAW DETECTIONS
+        # ====================================================
+
+        if frame_number % 30 == 0:
+
+            print(
+                f"\n[{camera_name}] RAW DETECTIONS:"
+            )
+
+            if result.boxes is not None and len(result.boxes) > 0:
+
+                for box in result.boxes:
+
+                    class_id = int(
+                        box.cls[0]
+                    )
+
+                    class_name = model.names[
+                        class_id
+                    ]
+
+                    confidence = float(
+                        box.conf[0]
+                    )
+
+                    print(
+                        f"  {class_name}: {confidence:.3f}"
+                    )
+
+            else:
+
+                print(
+                    "  Nothing detected"
+                )
+
+
+        # ====================================================
+        # CURRENT TIME
+        # ====================================================
+
         current_time = datetime.now()
 
 
@@ -272,7 +316,7 @@ def process_camera(camera_name, video_path):
 
 
         # ====================================================
-        # NO OBJECT
+        # NO OBJECT DETECTED
         # ====================================================
 
         else:
@@ -306,14 +350,20 @@ def process_camera(camera_name, video_path):
                 camera_state[
                     camera_name
                 ]["seconds_since_detection"] = (
+
                     round(
                         seconds_since,
                         2
                     )
+
                     if seconds_since is not None
                     else None
                 )
 
+
+                # --------------------------------------------
+                # Keep objects visible for timeout period
+                # --------------------------------------------
 
                 if (
                     seconds_since is not None
@@ -334,16 +384,16 @@ def process_camera(camera_name, video_path):
                     ]["objects"] = []
 
 
-        # ----------------------------------------------------
-        # SAVE STATE
-        # ----------------------------------------------------
+        # ====================================================
+        # SAVE LIVE STATE
+        # ====================================================
 
         save_live_state()
 
 
-        # ----------------------------------------------------
+        # ====================================================
         # TERMINAL STATUS
-        # ----------------------------------------------------
+        # ====================================================
 
         if frame_number % 30 == 0:
 
@@ -352,6 +402,7 @@ def process_camera(camera_name, video_path):
                 state = camera_state[
                     camera_name
                 ].copy()
+
 
             print(
                 f"[{camera_name}] "
@@ -362,8 +413,6 @@ def process_camera(camera_name, video_path):
 
 
     cap.release()
-
-
 # ============================================================
 # MAIN
 # ============================================================

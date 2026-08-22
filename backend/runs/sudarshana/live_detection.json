@@ -1,25 +1,25 @@
 {
     "system": "SUDARSHANA-AI",
-    "updated_at": "2026-08-22T18:43:00.954995",
+    "updated_at": "2026-08-23T00:12:09.122013",
     "no_object_timeout": 10,
     "cameras": {
         "cam1": {
             "camera": "cam1",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/cars.mp4",
             "object_present": true,
-            "last_detection": "2026-08-22T18:43:00.947509",
+            "last_detection": "2026-08-23T00:12:09.116220",
             "seconds_since_detection": 0,
             "visible": true,
             "objects": [
                 {
                     "category": "Vehicle",
                     "class": "car",
-                    "confidence": 0.898,
+                    "confidence": 0.702,
                     "bounding_box": {
-                        "x1": 667,
-                        "y1": 317,
-                        "x2": 1053,
-                        "y2": 503
+                        "x1": 663,
+                        "y1": 318,
+                        "x2": 1054,
+                        "y2": 502
                     }
                 }
             ]
@@ -27,11 +27,23 @@
         "cam2": {
             "camera": "cam2",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/people.mp4",
-            "object_present": false,
-            "last_detection": "2026-08-22T18:42:25.491060",
-            "seconds_since_detection": 27.93,
-            "visible": false,
-            "objects": []
+            "object_present": true,
+            "last_detection": "2026-08-23T00:11:39.156782",
+            "seconds_since_detection": 0,
+            "visible": true,
+            "objects": [
+                {
+                    "category": "Person",
+                    "class": "person",
+                    "confidence": 0.234,
+                    "bounding_box": {
+                        "x1": 680,
+                        "y1": 449,
+                        "x2": 688,
+                        "y2": 462
+                    }
+                }
+            ]
         }
     }
 }
