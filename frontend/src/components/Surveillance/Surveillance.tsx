@@ -118,107 +118,170 @@ const Surveillance: React.FC = () => {
   const [loadingLive, setLoadingLive] = useState(true);
   const [liveError, setLiveError] = useState(false);
   const [selectedCamera, setSelectedCamera] = useState<string>("CAM-02");
-  const [isPlaying, setIsPlaying] = useState(true);
-  const [isMuted, setIsMuted] = useState(true);
   const [selectedObject, setSelectedObject] = useState<string | null>(null);
   const [viewMode, setViewMode] = useState<"grid" | "list">("grid");
   const [filterThreat, setFilterThreat] = useState<string>("ALL");
-  const [videoError, setVideoError] = useState<boolean>(false);
-  const [detectionStatus, setDetectionStatus] = useState<"idle" | "starting" | "running" | "stopping">("idle");
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const [videoSize, setVideoSize] = useState({
-    width: 1920,
-    height: 1080,
+  const [videoSize, setVideoSize] = useState({ width: 1920, height: 1080 });
+
+  // ---- Per-camera states ----
+  const [camStates, setCamStates] = useState<
+    Record<
+      string,
+      {
+        isPlaying: boolean;
+        isMuted: boolean;
+        videoError: boolean;
+        detectionStatus: "idle" | "starting" | "running" | "stopping";
+      }
+    >
+  >({
+    "CAM-01": { isPlaying: true, isMuted: true, videoError: false, detectionStatus: "idle" },
+    "CAM-02": { isPlaying: true, isMuted: true, videoError: false, detectionStatus: "idle" },
   });
 
-  // ---- Control Detection Engine ----
-  const startDetection = async () => {
+  const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
+  const feedRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  // ---- Per-camera detection control ----
+  const startCameraDetection = async (camId: string) => {
+    const backendKey = cameras.find((c) => c.id === camId)?.backendKey;
+    if (!backendKey) return;
+
     try {
-      setDetectionStatus("starting");
-      const response = await fetch("http://localhost:8000/api/detection/start", {
-        method: "POST",
-      });
+      setCamStates((prev) => ({
+        ...prev,
+        [camId]: { ...prev[camId], detectionStatus: "starting" },
+      }));
+
+      const response = await fetch(
+        `http://localhost:8000/api/detection/start/${backendKey}`,
+        { method: "POST" }
+      );
 
       if (response.ok) {
-        const data = await response.json();
-        console.log("Detection started:", data);
-        setDetectionStatus("running");
+        setCamStates((prev) => ({
+          ...prev,
+          [camId]: { ...prev[camId], detectionStatus: "running" },
+        }));
       } else {
-        console.error("Failed to start detection");
-        setDetectionStatus("idle");
+        setCamStates((prev) => ({
+          ...prev,
+          [camId]: { ...prev[camId], detectionStatus: "idle" },
+        }));
       }
     } catch (error) {
-      console.error("Error starting detection:", error);
-      setDetectionStatus("idle");
+      console.error(`Error starting detection for ${camId}:`, error);
+      setCamStates((prev) => ({
+        ...prev,
+        [camId]: { ...prev[camId], detectionStatus: "idle" },
+      }));
     }
   };
 
-  const stopDetection = async () => {
+  const stopCameraDetection = async (camId: string) => {
+    const backendKey = cameras.find((c) => c.id === camId)?.backendKey;
+    if (!backendKey) return;
+
     try {
-      setDetectionStatus("stopping");
-      const response = await fetch("http://localhost:8000/api/detection/stop", {
-        method: "POST",
-      });
+      setCamStates((prev) => ({
+        ...prev,
+        [camId]: { ...prev[camId], detectionStatus: "stopping" },
+      }));
+
+      const response = await fetch(
+        `http://localhost:8000/api/detection/stop/${backendKey}`,
+        { method: "POST" }
+      );
 
       if (response.ok) {
-        const data = await response.json();
-        console.log("Detection stopped:", data);
-        setDetectionStatus("idle");
+        setCamStates((prev) => ({
+          ...prev,
+          [camId]: { ...prev[camId], detectionStatus: "idle" },
+        }));
       } else {
-        console.error("Failed to stop detection");
-        setDetectionStatus("running");
+        setCamStates((prev) => ({
+          ...prev,
+          [camId]: { ...prev[camId], detectionStatus: "running" },
+        }));
       }
     } catch (error) {
-      console.error("Error stopping detection:", error);
-      setDetectionStatus("running");
+      console.error(`Error stopping detection for ${camId}:`, error);
+      setCamStates((prev) => ({
+        ...prev,
+        [camId]: { ...prev[camId], detectionStatus: "running" },
+      }));
     }
   };
 
-  // ---- Handle Play/Pause ----
-  const togglePlay = async () => {
-    const newPlayingState = !isPlaying;
-    setIsPlaying(newPlayingState);
+  // ---- Video play/pause handlers ----
+  const togglePlay = async (camId: string) => {
+    const video = videoRefs.current[camId];
+    if (!video) return;
 
-    if (videoRef.current) {
-      if (newPlayingState) {
-        await videoRef.current.play();
-        // Start detection when video plays
-        await startDetection();
-      } else {
-        videoRef.current.pause();
-        // Stop detection when video pauses
-        await stopDetection();
+    const newPlayingState = !camStates[camId].isPlaying;
+    setCamStates((prev) => ({
+      ...prev,
+      [camId]: { ...prev[camId], isPlaying: newPlayingState },
+    }));
+
+    if (newPlayingState) {
+      try {
+        await video.play();
+        await startCameraDetection(camId);
+      } catch (e) {
+        console.error("Play error:", e);
       }
+    } else {
+      video.pause();
+      await stopCameraDetection(camId);
     }
   };
 
-  // ---- Initial video load ----
+  const toggleMute = (camId: string) => {
+    const video = videoRefs.current[camId];
+    if (!video) return;
+    const newMuted = !camStates[camId].isMuted;
+    video.muted = newMuted;
+    setCamStates((prev) => ({
+      ...prev,
+      [camId]: { ...prev[camId], isMuted: newMuted },
+    }));
+  };
+
+  const handleVideoError = (camId: string) => {
+    setCamStates((prev) => ({
+      ...prev,
+      [camId]: { ...prev[camId], videoError: true },
+    }));
+  };
+
+  // ---- Initial auto-start ----
   useEffect(() => {
-    // Auto-start detection when component mounts and video is playing
-    if (isPlaying && videoRef.current) {
-      startDetection();
-    }
+    cameras.forEach((cam) => {
+      if (camStates[cam.id].isPlaying) {
+        startCameraDetection(cam.id);
+      }
+    });
 
     return () => {
-      // Cleanup: stop detection when component unmounts
-      stopDetection();
+      cameras.forEach((cam) => {
+        if (camStates[cam.id].detectionStatus === "running") {
+          stopCameraDetection(cam.id);
+        }
+      });
     };
   }, []);
 
-  // ---- Fetch Live Detection Data ----
+  // ---- Fetch live detection data (polling) ----
   useEffect(() => {
     let mounted = true;
+    let interval: ReturnType<typeof setInterval> | null = null;
 
     const fetchLiveDetection = async () => {
       try {
         const response = await fetch("http://localhost:8000/api/live");
-
-        if (!response.ok) {
-          throw new Error(`HTTP ${response.status}`);
-        }
-
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data: LiveDetectionResponse = await response.json();
-
         if (mounted) {
           setLiveData(data);
           setLoadingLive(false);
@@ -226,7 +289,6 @@ const Surveillance: React.FC = () => {
         }
       } catch (error) {
         console.error("Failed to fetch live detection:", error);
-
         if (mounted) {
           setLoadingLive(false);
           setLiveError(true);
@@ -236,51 +298,29 @@ const Surveillance: React.FC = () => {
 
     fetchLiveDetection();
 
-    let interval: ReturnType<typeof setInterval> | null = null;
+    const anyRunning = () =>
+      Object.values(camStates).some((s) => s.detectionStatus === "running");
 
-    // Only poll when detection is running
-    if (detectionStatus === "running") {
+    if (anyRunning()) {
       interval = setInterval(fetchLiveDetection, 500);
     }
+
+    // Watch for changes in camStates to start/stop polling
+    const stateCheckInterval = setInterval(() => {
+      if (anyRunning() && !interval) {
+        interval = setInterval(fetchLiveDetection, 500);
+      } else if (!anyRunning() && interval) {
+        clearInterval(interval);
+        interval = null;
+      }
+    }, 1000);
 
     return () => {
       mounted = false;
       if (interval) clearInterval(interval);
+      clearInterval(stateCheckInterval);
     };
-  }, [detectionStatus]);
-
-  // ---- Video play/pause sync with detection ----
-  useEffect(() => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.play().catch(() => {
-          setIsPlaying(false);
-        });
-      } else {
-        videoRef.current.pause();
-      }
-    }
-  }, [isPlaying, selectedCamera]);
-
-  // ---- Camera change ----
-  useEffect(() => {
-    setVideoError(false);
-    if (videoRef.current) {
-      videoRef.current.load();
-    }
-  }, [selectedCamera]);
-
-  const handleVideoError = () => {
-    setVideoError(true);
-    console.error(`Failed to load video for camera: ${selectedCamera}`);
-  };
-
-  const toggleMute = () => {
-    setIsMuted(!isMuted);
-    if (videoRef.current) {
-      videoRef.current.muted = !isMuted;
-    }
-  };
+  }, [camStates]);
 
   // ---- Get selected camera ----
   const selectedCam = cameras.find((c) => c.id === selectedCamera);
@@ -313,6 +353,34 @@ const Surveillance: React.FC = () => {
       status: "ACTIVE",
     })) || [];
 
+  // ---- Combined objects from all cameras ----
+  const allDetectedObjects: DetectedObject[] = [];
+  if (liveData) {
+    cameras.forEach((cam) => {
+      const liveCam = liveData.cameras[cam.backendKey];
+      if (liveCam?.objects) {
+        liveCam.objects.forEach((obj, idx) => {
+          allDetectedObjects.push({
+            id: `${cam.id}-${idx + 1}`,
+            type:
+              obj.category === "Vehicle"
+                ? "Vehicle"
+                : obj.category === "Person"
+                  ? "Person"
+                  : "Other",
+            className: obj.class,
+            confidence: Math.round(obj.confidence * 100),
+            trackId: `${cam.id}-${idx + 1}`,
+            threat: "NORMAL",
+            position: { x: 0, y: 0 },
+            bbox: obj.bounding_box,
+            status: "ACTIVE",
+          });
+        });
+      }
+    });
+  }
+
   // ---- COLORS ----
   const colors = {
     bg: "#080D0C",
@@ -338,7 +406,7 @@ const Surveillance: React.FC = () => {
     NORMAL: colors.accentGreen,
   };
 
-  // ---- STYLES (same as before) ----
+  // ---- STYLES ----
   const containerStyle: React.CSSProperties = {
     background: colors.bg,
     padding: "1.5rem",
@@ -441,10 +509,10 @@ const Surveillance: React.FC = () => {
     textTransform: "uppercase",
   };
 
-  // ---- MAIN GRID ----
+  // ---- MAIN GRID: Two video feeds side-by-side ----
   const mainGridStyle: React.CSSProperties = {
     display: "grid",
-    gridTemplateColumns: "2.5fr 1.5fr",
+    gridTemplateColumns: "1fr 1fr",
     gap: "1rem",
     marginBottom: "1.5rem",
   };
@@ -477,7 +545,7 @@ const Surveillance: React.FC = () => {
     position: "relative",
     background: colors.surfaceDark,
     borderRadius: "4px",
-    height: "450px",
+    height: "400px",
     overflow: "hidden",
     border: `1px solid ${colors.borderLight}`,
   };
@@ -504,104 +572,6 @@ const Surveillance: React.FC = () => {
     gap: "0.5rem",
   };
 
-  const feedSceneStyle: React.CSSProperties = {
-    position: "relative",
-    width: "100%",
-    height: "100%",
-  };
-
-  const groundStyle: React.CSSProperties = {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "35%",
-    background: "linear-gradient(180deg, transparent, #0F1A16)",
-    borderTop: `1px solid ${colors.borderLight}`,
-    pointerEvents: "none",
-  };
-
-  const roadStyle: React.CSSProperties = {
-    position: "absolute",
-    bottom: "25%",
-    left: "5%",
-    right: "5%",
-    height: "6px",
-    background: colors.borderLight,
-    opacity: 0.5,
-    borderRadius: "2px",
-    pointerEvents: "none",
-  };
-
-  const roadMarkingStyle: React.CSSProperties = {
-    position: "absolute",
-    bottom: "25.3%",
-    left: "10%",
-    right: "10%",
-    height: "1px",
-    background: colors.textSecondary,
-    opacity: 0.2,
-    borderTop: `2px dashed ${colors.borderLight}`,
-    pointerEvents: "none",
-  };
-
-  const structureStyle: React.CSSProperties = {
-    position: "absolute",
-    background: "rgba(26, 42, 36, 0.6)",
-    border: `1px solid ${colors.borderLight}`,
-    borderRadius: "2px",
-    pointerEvents: "none",
-  };
-
-  const bboxStyle = (
-    color: string,
-    top: string,
-    left: string,
-    width?: string,
-    height?: string
-  ): React.CSSProperties => ({
-    position: "absolute",
-    border: `2px solid ${color}`,
-    background: `${color}15`,
-    padding: "0.25rem 0.5rem",
-    borderRadius: "2px",
-    fontSize: "9px",
-    fontWeight: 600,
-    color: colors.textPrimary,
-    top,
-    left,
-    width: width || "auto",
-    height: height || "auto",
-    minWidth: "80px",
-    backdropFilter: "blur(4px)",
-    cursor: "pointer",
-    boxShadow: color === colors.accentRed ? `0 0 20px ${color}44` : "none",
-    pointerEvents: "auto",
-  });
-
-  const bboxLabelStyle: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    lineHeight: 1.3,
-  };
-
-  const trackLineStyle = (
-    top: string,
-    left: string,
-    width: string,
-    transform?: string
-  ): React.CSSProperties => ({
-    position: "absolute",
-    border: `1px dashed ${colors.accentAmber}`,
-    opacity: 0.3,
-    pointerEvents: "none",
-    top,
-    left,
-    width,
-    transform: transform || "none",
-  });
-
-  // Feed overlay
   const feedOverlayStyle: React.CSSProperties = {
     position: "absolute",
     top: 0,
@@ -631,13 +601,13 @@ const Surveillance: React.FC = () => {
     gap: "0.5rem",
   };
 
-  const recDotStyle: React.CSSProperties = {
+  const recDotStyle = (isRunning: boolean): React.CSSProperties => ({
     width: "6px",
     height: "6px",
     borderRadius: "50%",
-    background: detectionStatus === "running" ? colors.accentRed : colors.textSecondary,
-    animation: detectionStatus === "running" ? "pulse-dot 1s infinite" : "none",
-  };
+    background: isRunning ? colors.accentRed : colors.textSecondary,
+    animation: isRunning ? "pulse-dot 1s infinite" : "none",
+  });
 
   const feedBottomBarStyle: React.CSSProperties = {
     display: "flex",
@@ -809,12 +779,9 @@ const Surveillance: React.FC = () => {
     return obj.threat === filterThreat;
   });
 
-  const criticalCount = detectedObjects.filter((o) => o.threat === "CRITICAL").length;
-  const highCount = detectedObjects.filter((o) => o.threat === "HIGH").length;
-  const activeCount = detectedObjects.filter((o) => o.status === "ACTIVE" || o.status === "TRACKING").length;
-
-  const hasDetections = detectedObjects.length > 0;
-  const isObjectPresent = selectedLiveCamera?.object_present || false;
+  const criticalCount = allDetectedObjects.filter((o) => o.threat === "CRITICAL").length;
+  const highCount = allDetectedObjects.filter((o) => o.threat === "HIGH").length;
+  const activeCount = allDetectedObjects.filter((o) => o.status === "ACTIVE" || o.status === "TRACKING").length;
 
   return (
     <div style={containerStyle}>
@@ -842,8 +809,8 @@ const Surveillance: React.FC = () => {
             )}
           </div>
           <div style={headerSubtitleStyle}>
-            Real-time detection & tracking • {detectedObjects.length} objects detected
-            {detectionStatus === "running" && (
+            Real-time detection & tracking • {allDetectedObjects.length} objects detected
+            {Object.values(camStates).some((s) => s.detectionStatus === "running") && (
               <span
                 style={{
                   marginLeft: "0.5rem",
@@ -854,7 +821,7 @@ const Surveillance: React.FC = () => {
                 ● DETECTION ACTIVE
               </span>
             )}
-            {detectionStatus === "idle" && (
+            {Object.values(camStates).every((s) => s.detectionStatus === "idle") && (
               <span
                 style={{
                   marginLeft: "0.5rem",
@@ -875,9 +842,7 @@ const Surveillance: React.FC = () => {
                 ? colors.accentAmber
                 : liveError
                   ? colors.accentRed
-                  : detectionStatus === "running"
-                    ? colors.accentGreen
-                    : colors.textSecondary,
+                  : colors.accentGreen,
               marginLeft: "0.75rem",
               fontWeight: 600,
             }}
@@ -887,9 +852,7 @@ const Surveillance: React.FC = () => {
               ? "CONNECTING"
               : liveError
                 ? "OFFLINE"
-                : detectionStatus === "running"
-                  ? "LIVE DATA"
-                  : "PAUSED"}
+                : "LIVE DATA"}
           </span>
           <div style={cameraSelectorStyle}>
             <Radio
@@ -928,7 +891,7 @@ const Surveillance: React.FC = () => {
       {/* STATS */}
       <div style={statsGridStyle}>
         <div style={statCardStyle}>
-          <span style={statValueStyle}>{detectedObjects.length}</span>
+          <span style={statValueStyle}>{allDetectedObjects.length}</span>
           <span style={statLabelStyle}>Objects Detected</span>
         </div>
         <div style={statCardStyle}>
@@ -945,236 +908,143 @@ const Surveillance: React.FC = () => {
         </div>
       </div>
 
-      {/* MAIN GRID */}
+      {/* TWO VIDEO FEEDS */}
       <div style={mainGridStyle}>
-        {/* SURVEILLANCE FEED */}
-        <div style={panelStyle}>
-          <div style={panelHeaderStyle}>
-            <span style={panelTitleStyle}>
-              <Eye size={14} style={{ display: "inline", marginRight: "6px" }} />
-              Live Feed • {selectedCamera} • {selectedCam?.name}
-            </span>
-            <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-              <Clock size={12} style={{ display: "inline", marginRight: "4px" }} />
-              {new Date().toLocaleTimeString()}
-            </span>
-          </div>
-          <div style={feedContainerStyle}>
-            <div style={feedSceneStyle}>
-              {/* Video Feed */}
-              {selectedCam?.videoSrc && !videoError ? (
-                <video
-                  ref={videoRef}
-                  src={selectedCam.videoSrc}
-                  style={videoStyle}
-                  autoPlay={isPlaying}
-                  muted={isMuted}
-                  loop
-                  playsInline
-                  onError={handleVideoError}
-                  onLoadedMetadata={(e) => {
-                    const video = e.currentTarget;
-                    setVideoSize({
-                      width: video.videoWidth,
-                      height: video.videoHeight,
-                    });
-                  }}
-                />
-              ) : (
-                <div style={videoErrorStyle}>
-                  <Camera size={48} opacity={0.3} />
-                  <span>{videoError ? "Video unavailable" : "No video feed"}</span>
-                  <span style={{ fontSize: "11px" }}>Camera: {selectedCamera}</span>
-                </div>
-              )}
+        {cameras.map((cam) => {
+          const state = camStates[cam.id];
+          const liveCam = liveData?.cameras?.[cam.backendKey];
+          const objectCount = liveCam?.objects?.length || 0;
+          const isDetectionActive = state.detectionStatus === "running";
 
-              {/* Terrain overlay (semi-transparent) */}
-              <div style={groundStyle} />
-              <div style={roadStyle} />
-              <div style={roadMarkingStyle} />
-
-              <div style={{ ...structureStyle, top: "10%", left: "5%", width: "12%", height: "15%" }} />
-              <div style={{ ...structureStyle, top: "8%", right: "8%", width: "10%", height: "12%" }} />
-              <div style={{ ...structureStyle, bottom: "40%", left: "2%", width: "8%", height: "10%" }} />
-              <div style={{ ...structureStyle, top: "15%", left: "20%", width: "3%", height: "8%", borderRadius: "50%" }} />
-              <div style={{ ...structureStyle, top: "12%", right: "25%", width: "4%", height: "10%", borderRadius: "50%" }} />
-
-              {/* Detected Objects - Bounding Boxes */}
-              {detectedObjects.map((obj) => {
-                let color = colors.accentGreen;
-                if (obj.threat === "CRITICAL") color = colors.accentRed;
-                else if (obj.threat === "HIGH") color = colors.accentOrange;
-                else if (obj.threat === "MEDIUM") color = colors.accentAmber;
-                else if (obj.threat === "LOW") color = colors.accentBlue;
-
-                const isCritical = obj.threat === "CRITICAL";
-                const topPercent = (obj.bbox.y1 / videoSize.height) * 100;
-                const leftPercent = (obj.bbox.x1 / videoSize.width) * 100;
-                const widthPercent = ((obj.bbox.x2 - obj.bbox.x1) / videoSize.width) * 100;
-                const heightPercent = ((obj.bbox.y2 - obj.bbox.y1) / videoSize.height) * 100;
-
-                return (
-                  <div
-                    key={obj.id}
-                    style={{
-                      ...bboxStyle(
-                        color,
-                        `${topPercent}%`,
-                        `${leftPercent}%`,
-                        `${widthPercent}%`,
-                        `${heightPercent}%`
-                      ),
-                      borderColor: color,
-                      animation: isCritical ? "pulse-critical 2s infinite" : "none",
-                      minWidth: "60px",
+          return (
+            <div key={cam.id} style={panelStyle}>
+              <div style={panelHeaderStyle}>
+                <span style={panelTitleStyle}>
+                  <Eye size={14} style={{ display: "inline", marginRight: "6px" }} />
+                  Live Feed • {cam.id} • {cam.name}
+                </span>
+                <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+                  <Clock size={12} style={{ display: "inline", marginRight: "4px" }} />
+                  {new Date().toLocaleTimeString()}
+                </span>
+              </div>
+              <div style={feedContainerStyle}>
+                {state.videoError ? (
+                  <div style={videoErrorStyle}>
+                    <Camera size={48} opacity={0.3} />
+                    <span>Video unavailable</span>
+                  </div>
+                ) : (
+                  <video
+                    ref={(el) => {
+                      videoRefs.current[cam.id] = el;
                     }}
-                    onClick={() => setSelectedObject(obj.id)}
-                  >
-                    <div style={bboxLabelStyle}>
-                      <span style={{ fontWeight: 700 }}>
-                        {objectTypeIcon(obj.type)} {obj.type} ({obj.className})
-                      </span>
-                      <span style={{ fontSize: "8px", color: colors.textSecondary }}>
-                        {obj.confidence}% • ID: {obj.id}
-                      </span>
-                      {isCritical && (
-                        <span style={{ fontSize: "8px", color: colors.accentRed, fontWeight: 700 }}>
-                          CRITICAL THREAT
+                    src={cam.videoSrc}
+                    style={videoStyle}
+                    autoPlay={state.isPlaying}
+                    muted={state.isMuted}
+                    loop
+                    playsInline
+                    onError={() => handleVideoError(cam.id)}
+                    onLoadedMetadata={(e) => {
+                      const video = e.currentTarget;
+                      setVideoSize({
+                        width: video.videoWidth,
+                        height: video.videoHeight,
+                      });
+                    }}
+                  />
+                )}
+
+                {/* Overlay */}
+                <div style={feedOverlayStyle}>
+                  <div style={feedTopBarStyle}>
+                    <div style={feedRecStyle}>
+                      <span style={recDotStyle(isDetectionActive)} />
+                      <span>REC</span>
+                      {isDetectionActive && (
+                        <span
+                          style={{
+                            color: colors.accentGreen,
+                            fontWeight: 700,
+                            fontSize: "9px",
+                            marginLeft: "0.5rem",
+                          }}
+                        >
+                          ● DETECTING
+                        </span>
+                      )}
+                      {!isDetectionActive && state.isPlaying && (
+                        <span
+                          style={{
+                            color: colors.textSecondary,
+                            fontWeight: 700,
+                            fontSize: "9px",
+                            marginLeft: "0.5rem",
+                          }}
+                        >
+                          ● PAUSED
                         </span>
                       )}
                     </div>
-                  </div>
-                );
-              })}
-
-              {/* Tracking lines */}
-              {detectedObjects.map((obj) => {
-                const topPercent = (obj.bbox.y1 / videoSize.height) * 100 + 5;
-                const leftPercent = (obj.bbox.x1 / videoSize.width) * 100 + 10;
-                let borderColor = colors.accentAmber;
-                if (obj.threat === "CRITICAL") borderColor = colors.accentRed;
-                else if (obj.threat === "HIGH") borderColor = colors.accentOrange;
-
-                return (
-                  <div
-                    key={`track-${obj.id}`}
-                    style={{
-                      ...trackLineStyle(
-                        `${topPercent}%`,
-                        `${leftPercent}%`,
-                        "60px",
-                        "rotate(35deg)"
-                      ),
-                      borderColor: borderColor,
-                      opacity: obj.threat === "CRITICAL" ? 0.6 : 0.3,
-                    }}
-                  />
-                );
-              })}
-
-              {/* Feed Overlay */}
-              <div style={feedOverlayStyle}>
-                <div style={feedTopBarStyle}>
-                  <div style={feedRecStyle}>
-                    <span style={recDotStyle} />
-                    <span>REC</span>
-                    {detectionStatus === "running" && (
-                      <span
-                        style={{
-                          color: colors.accentGreen,
-                          fontWeight: 700,
-                          fontSize: "9px",
-                          marginLeft: "0.5rem",
-                        }}
-                      >
-                        ● DETECTING
-                      </span>
-                    )}
-                    {detectionStatus === "idle" && (
-                      <span
-                        style={{
-                          color: colors.textSecondary,
-                          fontWeight: 700,
-                          fontSize: "9px",
-                          marginLeft: "0.5rem",
-                        }}
-                      >
-                        ● PAUSED
-                      </span>
-                    )}
-                    {selectedCam?.threatLevel === "CRITICAL" && (
-                      <span
-                        style={{
-                          color: colors.accentRed,
-                          fontWeight: 700,
-                          fontSize: "9px",
-                          marginLeft: "0.5rem",
-                        }}
-                      >
-                        ⚠ CRITICAL
-                      </span>
-                    )}
-                  </div>
-                  <div style={{ display: "flex", gap: "1rem" }}>
-                    <span>SECTOR {selectedCam?.sector}</span>
-                    <span>|</span>
-                    <span>{selectedCamera}</span>
-                    <span>|</span>
-                    <span>
-                      {selectedCam?.status === "ACTIVE"
-                        ? "LIVE"
-                        : selectedCam?.status === "RECORDING"
-                          ? "RECORDING"
-                          : "OFFLINE"}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={feedBottomBarStyle}>
-                  <div style={{ display: "flex", gap: "0.75rem" }}>
-                    <span>OBJECTS: {detectedObjects.length}</span>
-                    <span>•</span>
-                    <span>TRACKING: {detectedObjects.filter((o) => o.status === "TRACKING").length}</span>
-                    <span>•</span>
-                    <span>
-                      THREATS: {detectedObjects.filter((o) => o.threat !== "NORMAL").length}
-                    </span>
-                    {selectedLiveCamera?.seconds_since_detection !== undefined && detectionStatus === "running" && (
+                    <div style={{ display: "flex", gap: "1rem" }}>
+                      <span>SECTOR {cam.sector}</span>
+                      <span>|</span>
+                      <span>{cam.id}</span>
+                      <span>|</span>
                       <span>
-                        • Last detection: {selectedLiveCamera.seconds_since_detection}s ago
+                        {cam.status === "ACTIVE"
+                          ? "LIVE"
+                          : cam.status === "RECORDING"
+                            ? "RECORDING"
+                            : "OFFLINE"}
                       </span>
-                    )}
+                    </div>
                   </div>
-                  <div style={feedControlsStyle}>
-                    <button
-                      style={controlButtonStyle}
-                      onClick={toggleMute}
-                      title={isMuted ? "Unmute" : "Mute"}
-                    >
-                      {isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
-                    </button>
-                    <button
-                      style={controlButtonStyle}
-                      onClick={togglePlay}
-                    >
-                      {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-                    </button>
-                    <button style={controlButtonStyle}>
-                      <Maximize2 size={14} />
-                    </button>
+
+                  <div style={feedBottomBarStyle}>
+                    <div style={{ display: "flex", gap: "0.75rem" }}>
+                      <span>OBJECTS: {objectCount}</span>
+                      {isDetectionActive && liveCam?.seconds_since_detection !== undefined && (
+                        <span>
+                          • Last detection: {liveCam.seconds_since_detection}s ago
+                        </span>
+                      )}
+                    </div>
+                    <div style={feedControlsStyle}>
+                      <button
+                        style={controlButtonStyle}
+                        onClick={() => toggleMute(cam.id)}
+                        title={state.isMuted ? "Unmute" : "Mute"}
+                      >
+                        {state.isMuted ? <VolumeX size={14} /> : <Volume2 size={14} />}
+                      </button>
+                      <button
+                        style={controlButtonStyle}
+                        onClick={() => togglePlay(cam.id)}
+                      >
+                        {state.isPlaying ? <Pause size={14} /> : <Play size={14} />}
+                      </button>
+                      <button style={controlButtonStyle}>
+                        <Maximize2 size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+          );
+        })}
+      </div>
 
-        {/* OBJECT LIST & DETAILS */}
+      {/* OBJECT LIST & CAMERA GRID */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "1rem" }}>
+        {/* Object List */}
         <div style={panelStyle}>
           <div style={panelHeaderStyle}>
             <span style={panelTitleStyle}>
               <Target size={14} style={{ display: "inline", marginRight: "6px" }} />
-              Detected Objects • Prioritized
+              Detected Objects • {selectedCamera}
             </span>
             <span style={{ fontSize: "10px", color: colors.textSecondary }}>
               <Activity size={12} style={{ display: "inline", marginRight: "4px" }} />
@@ -1269,8 +1139,7 @@ const Surveillance: React.FC = () => {
                 OBJECT DETAILS
               </div>
               <div style={{ fontSize: "11px", color: colors.textPrimary }}>
-                {detectedObjects.find((o) => o.id === selectedObject)?.type} •{" "}
-                {selectedObject}
+                {detectedObjects.find((o) => o.id === selectedObject)?.type} • {selectedObject}
               </div>
               <div
                 style={{
@@ -1282,165 +1151,148 @@ const Surveillance: React.FC = () => {
                 }}
               >
                 <span>
-                  Class: {detectedObjects.find((o) => o.id === selectedObject)?.className}
+                  Class:{" "}
+                  {detectedObjects.find((o) => o.id === selectedObject)?.className}
                 </span>
                 <span>
-                  Confidence: {detectedObjects.find((o) => o.id === selectedObject)?.confidence}%
+                  Confidence:{" "}
+                  {detectedObjects.find((o) => o.id === selectedObject)?.confidence}%
                 </span>
                 <span>
-                  Status: {detectedObjects.find((o) => o.id === selectedObject)?.status}
+                  Status:{" "}
+                  {detectedObjects.find((o) => o.id === selectedObject)?.status}
                 </span>
                 <span>
-                  Threat: {detectedObjects.find((o) => o.id === selectedObject)?.threat}
+                  Threat:{" "}
+                  {detectedObjects.find((o) => o.id === selectedObject)?.threat}
                 </span>
               </div>
             </div>
           )}
         </div>
-      </div>
 
-      {/* CAMERA GRID */}
-      <div style={{ marginTop: "1rem" }}>
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "center",
-            marginBottom: "0.75rem",
-          }}
-        >
-          <span
-            style={{
-              fontSize: "10px",
-              fontWeight: 600,
-              color: colors.textSecondary,
-              letterSpacing: "0.8px",
-              textTransform: "uppercase",
-            }}
-          >
-            <Camera size={14} style={{ display: "inline", marginRight: "6px" }} />
-            Camera Grid • {cameras.length} feeds
-          </span>
-          <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-            <span style={{ color: colors.accentGreen }}>● Active</span>{" "}
-            <span style={{ color: colors.accentRed, marginLeft: "0.5rem" }}>
-              ● Detection
+        {/* Camera Grid */}
+        <div style={panelStyle}>
+          <div style={panelHeaderStyle}>
+            <span style={panelTitleStyle}>
+              <Camera size={14} style={{ display: "inline", marginRight: "6px" }} />
+              Camera Grid • {cameras.length} feeds
             </span>
-          </span>
-        </div>
-        <div style={cameraGridStyle}>
-          {cameras.map((cam) => {
-            const backendKey = cam.backendKey;
-            const liveCam = liveData?.cameras?.[backendKey];
-            const hasObjects = liveCam?.object_present || false;
-            const isVisible = liveCam?.visible !== false;
+            <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+              <span style={{ color: colors.accentGreen }}>● Active</span>{" "}
+              <span style={{ color: colors.accentRed, marginLeft: "0.5rem" }}>● Detection</span>
+            </span>
+          </div>
+          <div style={cameraGridStyle}>
+            {cameras.map((cam) => {
+              const liveCam = liveData?.cameras?.[cam.backendKey];
+              const hasObjects = liveCam?.object_present || false;
+              const isVisible = liveCam?.visible !== false;
+              const isDetectionRunning = camStates[cam.id]?.detectionStatus === "running";
 
-            return (
-              <div
-                key={cam.id}
-                style={cameraCardStyle(
-                  selectedCamera === cam.id,
-                  cam.status,
-                  hasObjects ? "CRITICAL" : undefined
-                )}
-                onClick={() => setSelectedCamera(cam.id)}
-              >
+              return (
                 <div
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: "0.25rem",
-                  }}
+                  key={cam.id}
+                  style={cameraCardStyle(
+                    selectedCamera === cam.id,
+                    cam.status,
+                    hasObjects ? "CRITICAL" : undefined
+                  )}
+                  onClick={() => setSelectedCamera(cam.id)}
                 >
-                  <span
+                  <div
                     style={{
-                      fontSize: "11px",
-                      fontWeight: 600,
-                      color: colors.textPrimary,
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: "0.25rem",
                     }}
                   >
-                    {cam.name}
-                  </span>
-                  <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
                     <span
                       style={{
-                        fontSize: "8px",
-                        color: hasObjects
-                          ? colors.accentRed
-                          : detectionStatus === "idle"
-                            ? colors.textSecondary
-                            : liveData && !isVisible
-                              ? colors.accentRed
+                        fontSize: "11px",
+                        fontWeight: 600,
+                        color: colors.textPrimary,
+                      }}
+                    >
+                      {cam.name}
+                    </span>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.25rem" }}>
+                      <span
+                        style={{
+                          fontSize: "8px",
+                          color: hasObjects
+                            ? colors.accentRed
+                            : !isDetectionRunning
+                              ? colors.textSecondary
                               : cam.status === "ACTIVE"
                                 ? colors.accentGreen
                                 : cam.status === "RECORDING"
                                   ? colors.accentAmber
                                   : colors.accentRed,
+                        }}
+                      >
+                        {hasObjects ? "DETECTING" : !isDetectionRunning ? "PAUSED" : cam.status}
+                      </span>
+                      <span
+                        style={{
+                          width: "8px",
+                          height: "8px",
+                          borderRadius: "50%",
+                          background: hasObjects
+                            ? colors.accentRed
+                            : !isDetectionRunning
+                              ? colors.textSecondary
+                              : colors.accentGreen,
+                          display: "inline-block",
+                          boxShadow: hasObjects ? `0 0 12px ${colors.accentRed}` : "none",
+                        }}
+                      />
+                    </div>
+                  </div>
+                  <div style={{ fontSize: "9px", color: colors.textSecondary }}>
+                    {cam.id} • {cam.resolution} • {cam.fps}fps
+                  </div>
+                  {hasObjects && isDetectionRunning && (
+                    <div
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: 700,
+                        color: colors.accentRed,
+                        marginTop: "2px",
                       }}
                     >
-                      {hasObjects ? "DETECTING" : detectionStatus === "idle" ? "PAUSED" : cam.status}
-                    </span>
-                    <span
+                      ● {liveCam?.objects?.length || 0} OBJECTS DETECTED
+                    </div>
+                  )}
+                  {!isDetectionRunning && camStates[cam.id]?.isPlaying && (
+                    <div
                       style={{
-                        width: "8px",
-                        height: "8px",
-                        borderRadius: "50%",
-                        background: hasObjects
-                          ? colors.accentRed
-                          : detectionStatus === "idle"
-                            ? colors.textSecondary
-                            : liveData && !isVisible
-                              ? colors.accentRed
-                              : colors.accentGreen,
-                        display: "inline-block",
-                        boxShadow: hasObjects ? `0 0 12px ${colors.accentRed}` : "none",
+                        fontSize: "8px",
+                        fontWeight: 700,
+                        color: colors.textSecondary,
+                        marginTop: "2px",
                       }}
-                    />
-                  </div>
+                    >
+                      ● DETECTION PAUSED
+                    </div>
+                  )}
+                  {!isVisible && (
+                    <div
+                      style={{
+                        fontSize: "8px",
+                        fontWeight: 700,
+                        color: colors.accentRed,
+                        marginTop: "2px",
+                      }}
+                    >
+                      OFFLINE
+                    </div>
+                  )}
                 </div>
-                <div style={{ fontSize: "9px", color: colors.textSecondary }}>
-                  {cam.id} • {cam.resolution} • {cam.fps}fps
-                </div>
-                {hasObjects && detectionStatus === "running" && (
-                  <div
-                    style={{
-                      fontSize: "8px",
-                      fontWeight: 700,
-                      color: colors.accentRed,
-                      marginTop: "2px",
-                    }}
-                  >
-                    ● {liveCam?.objects?.length || 0} OBJECTS DETECTED
-                  </div>
-                )}
-                {detectionStatus === "idle" && (
-                  <div
-                    style={{
-                      fontSize: "8px",
-                      fontWeight: 700,
-                      color: colors.textSecondary,
-                      marginTop: "2px",
-                    }}
-                  >
-                    ● DETECTION PAUSED
-                  </div>
-                )}
-                {liveData && !isVisible && detectionStatus === "running" && (
-                  <div
-                    style={{
-                      fontSize: "8px",
-                      fontWeight: 700,
-                      color: colors.accentRed,
-                      marginTop: "2px",
-                    }}
-                  >
-                    OFFLINE
-                  </div>
-                )}
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       </div>
     </div>

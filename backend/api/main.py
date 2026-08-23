@@ -503,3 +503,47 @@ def shutdown_event():
             pass
     except Exception as e:
         print(f"Error during shutdown: {e}")
+
+# ============================================================
+# PER‑CAMERA DETECTION CONTROL
+# ============================================================
+
+@app.post("/api/detection/start/{camera_name}")
+def start_camera_detection(camera_name: str):
+    """Start detection for a single camera."""
+    try:
+        import importlib
+        live_detection_module = importlib.import_module("ai.detection.live_detection")
+        if not hasattr(live_detection_module, 'start_camera'):
+            raise HTTPException(status_code=500, detail="start_camera not available in live_detection module")
+        
+        success = live_detection_module.start_camera(camera_name)
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Failed to start camera {camera_name}")
+        
+        return {"status": "started", "camera": camera_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error starting camera {camera_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/detection/stop/{camera_name}")
+def stop_camera_detection(camera_name: str):
+    """Stop detection for a single camera."""
+    try:
+        import importlib
+        live_detection_module = importlib.import_module("ai.detection.live_detection")
+        if not hasattr(live_detection_module, 'stop_camera'):
+            raise HTTPException(status_code=500, detail="stop_camera not available in live_detection module")
+        
+        success = live_detection_module.stop_camera(camera_name)
+        if not success:
+            raise HTTPException(status_code=400, detail=f"Failed to stop camera {camera_name}")
+        
+        return {"status": "stopped", "camera": camera_name}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error stopping camera {camera_name}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

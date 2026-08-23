@@ -1,32 +1,44 @@
 {
     "system": "SUDARSHANA-AI",
-    "updated_at": "2026-08-23T01:32:43.475262",
+    "updated_at": "2026-08-23T16:53:05.319259",
     "no_object_timeout": 10,
     "cameras": {
         "cam1": {
             "camera": "cam1",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/cars.mp4",
-            "object_present": false,
-            "last_detection": "2026-08-23T01:32:43.473516",
+            "object_present": true,
+            "last_detection": "2026-08-23T16:53:05.319237",
             "seconds_since_detection": 0.0,
-            "visible": false,
-            "objects": [],
-            "frame": 116,
+            "visible": true,
+            "objects": [
+                {
+                    "category": "Vehicle",
+                    "class": "car",
+                    "confidence": 0.784,
+                    "bounding_box": {
+                        "x1": 663,
+                        "y1": 548,
+                        "x2": 715,
+                        "y2": 604
+                    }
+                }
+            ],
+            "frame": 464,
             "fps": 26.698092993357616,
-            "video_time": 4.34,
-            "status": "ENDED"
+            "video_time": 17.38,
+            "status": "LIVE"
         },
         "cam2": {
             "camera": "cam2",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/people.mp4",
             "object_present": false,
-            "last_detection": "2026-08-23T01:32:43.472035",
+            "last_detection": "2026-08-23T16:52:20.968751",
             "seconds_since_detection": 0.0,
             "visible": false,
             "objects": [],
-            "frame": 114,
+            "frame": 486,
             "fps": 25.379915400281998,
-            "video_time": 4.49,
+            "video_time": 19.15,
             "status": "ENDED"
         }
     }
