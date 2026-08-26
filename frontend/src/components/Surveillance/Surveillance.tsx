@@ -79,8 +79,8 @@ interface CameraFeed {
 // ============================================================
 // VIDEO IMPORTS
 // ============================================================
-import cam1Video from "../../../public/videos/cam1.mp4";
-import cam2Video from "../../../public/videos/cam2.mp4";
+const cam1Video = "/videos/cam1.mp4";
+const cam2Video = "/videos/cam2.mp4";
 
 // ============================================================
 // MOCK DATA

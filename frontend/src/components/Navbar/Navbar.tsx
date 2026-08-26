@@ -170,7 +170,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const navItems: { id: NavPage; label: string }[] = [
     { id: "command", label: "COMMAND" },
     { id: "surveillance", label: "SURVEILLANCE" },
-    { id: "threats", label: "THREATS" },
+    { id: "threats", label: "RESTRICTED ZONES" },
     { id: "incidents", label: "INCIDENTS" },
     { id: "timeline", label: "TIMELINE" },
     { id: "analytics", label: "ANALYTICS" },
