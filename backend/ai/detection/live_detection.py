@@ -20,7 +20,9 @@ MODEL_PATH = PROJECT_ROOT / "yolov8n.pt"
 
 CAMERAS = {
     "cam1": CURRENT_DIR / "cars.mp4",
-    "cam2": CURRENT_DIR / "people.mp4"
+    "cam2": CURRENT_DIR / "people.mp4",
+    "cam3": CURRENT_DIR / "cam3.mp4",
+    "cam4": CURRENT_DIR / "cam4.mp4",
 }
 
 OUTPUT_DIR = BACKEND_DIR / "runs" / "sudarshana"
@@ -32,8 +34,23 @@ LIVE_STATUS_FILE = OUTPUT_DIR / "live_detection.json"
 # SETTINGS
 # ============================================================
 
-CONFIDENCE_THRESHOLD = 0.20
+CONFIDENCE_THRESHOLD = 0.25  # Balanced threshold
 NO_OBJECT_TIMEOUT = 10
+
+# ============================================================
+# YOLO CLASSES - Only Person and Vehicle
+# ============================================================
+# YOLO class IDs:
+# 0: person
+# 2: car, 3: motorcycle, 5: bus, 7: truck
+ALLOWED_CLASS_IDS = {0, 2, 3, 5, 7}
+ALLOWED_CLASS_NAMES = {
+    0: "person",
+    2: "car",
+    3: "motorcycle",
+    5: "bus",
+    7: "truck",
+}
 
 # ============================================================
 # SHARED STATE
@@ -61,15 +78,16 @@ for camera_name, video_path in CAMERAS.items():
     camera_running[camera_name] = False
 
 # ============================================================
-# CATEGORY
+# CATEGORY - Only Person and Vehicle
 # ============================================================
 
-def get_category(class_name):
-    if class_name == "person":
+def get_category(class_id, class_name):
+    """Only return Person or Vehicle for allowed classes"""
+    if class_id == 0:
         return "Person"
-    if class_name in ["car", "truck", "bus", "motorcycle", "bicycle"]:
+    if class_id in [2, 3, 5, 7]:
         return "Vehicle"
-    return "Other"
+    return None  # Ignore animals and other objects
 
 # ============================================================
 # SAVE STATE
@@ -94,12 +112,12 @@ def process_camera(camera_name, video_path):
     print(f"[{camera_name}] Opening: {video_path}")
 
     if not video_path.exists():
-        print(f"[{camera_name}] Video not found.")
+        print(f"[{camera_name}] ❌ Video not found.")
         return
 
     cap = cv2.VideoCapture(str(video_path))
     if not cap.isOpened():
-        print(f"[{camera_name}] Unable to open video.")
+        print(f"[{camera_name}] ❌ Unable to open video.")
         return
 
     fps = cap.get(cv2.CAP_PROP_FPS)
@@ -109,12 +127,16 @@ def process_camera(camera_name, video_path):
     frame_delay = 1.0 / fps
     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
 
-    print(f"[{camera_name}] FPS: {fps}")
-    print(f"[{camera_name}] Frames: {total_frames}")
+    print(f"[{camera_name}] ✅ FPS: {fps:.2f}")
+    print(f"[{camera_name}] ✅ Frames: {total_frames}")
+    print(f"[{camera_name}] 🎯 Only detecting: Person (0), Vehicle (2,3,5,7)")
+    print(f"[{camera_name}] 🎯 Confidence threshold: {CONFIDENCE_THRESHOLD}")
 
     model = YOLO(str(MODEL_PATH))
     frame_number = 0
     last_detection_time = None
+    detection_count = 0
+    animal_count = 0
 
     camera_running[camera_name] = True
 
@@ -130,28 +152,67 @@ def process_camera(camera_name, video_path):
         success, frame = cap.read()
 
         if not success:
-            print(f"[{camera_name}] Video ended.")
+            print(f"[{camera_name}] 🏁 Video ended.")
+            print(f"[{camera_name}] 📊 Person/Vehicle: {detection_count}, Animals ignored: {animal_count}")
             break
 
         frame_number += 1
 
-        # YOLO detection
-        results = model(frame, conf=CONFIDENCE_THRESHOLD, imgsz=1280, verbose=False)
+        # ========================================================
+        # YOLO DETECTION - Fixed
+        # ========================================================
+        results = model(
+            frame,
+            conf=CONFIDENCE_THRESHOLD,
+            imgsz=640,  # Faster processing
+            verbose=False
+        )
+
         result = results[0]
         detected_objects = []
 
         if result.boxes is not None and len(result.boxes) > 0:
             for box in result.boxes:
                 class_id = int(box.cls[0])
-                class_name = model.names[class_id]
                 confidence = float(box.conf[0])
+                
+                # Skip if not allowed class
+                if class_id not in ALLOWED_CLASS_IDS:
+                    animal_count += 1
+                    continue
+
+                class_name = model.names[class_id]
                 x1, y1, x2, y2 = map(int, box.xyxy[0].tolist())
+
+                category = get_category(class_id, class_name)
+                
+                if category is None:
+                    animal_count += 1
+                    continue
+
                 detected_objects.append({
-                    "category": get_category(class_name),
+                    "category": category,
                     "class": class_name,
                     "confidence": round(confidence, 3),
-                    "bounding_box": {"x1": x1, "y1": y1, "x2": x2, "y2": y2}
+                    "bounding_box": {
+                        "x1": x1,
+                        "y1": y1,
+                        "x2": x2,
+                        "y2": y2
+                    }
                 })
+                detection_count += 1
+
+        # Log every 50 frames
+        if frame_number % 50 == 0:
+            if len(detected_objects) > 0:
+                print(f"[{camera_name}] Frame {frame_number}: {len(detected_objects)} Person/Vehicle detected")
+                for obj in detected_objects[:3]:
+                    print(f"[{camera_name}]   ✅ {obj['class']} ({obj['confidence']*100:.1f}%)")
+            else:
+                # Print once in a while to show it's still running
+                if frame_number % 200 == 0:
+                    print(f"[{camera_name}] Frame {frame_number}: No Person/Vehicle detected (Animals ignored: {animal_count})")
 
         now = datetime.now()
 
@@ -195,7 +256,7 @@ def process_camera(camera_name, video_path):
         camera_state[camera_name]["object_present"] = False
 
     save_live_state()
-    print(f"[{camera_name}] Detection stopped.")
+    print(f"[{camera_name}] 🛑 Detection stopped. Person/Vehicle: {detection_count}, Animals ignored: {animal_count}")
 
 # ============================================================
 # CONTROL FUNCTIONS
@@ -224,22 +285,41 @@ def stop_camera(camera_name):
     return False
 
 def start_all_cameras():
-    print("Starting all cameras...")
+    print("\n" + "=" * 60)
+    print("        SUDARSHANA-AI")
+    print("        STARTING DETECTION")
+    print("=" * 60)
+    print()
+    print("🎯 Only detecting: Person, Car, Truck, Bus, Motorcycle")
+    print(f"🎯 Confidence threshold: {CONFIDENCE_THRESHOLD}")
+    print("❌ Animals and other objects will be IGNORED")
+    print("\n" + "-" * 60)
+    
     for camera_name in CAMERAS:
         if camera_running.get(camera_name, False):
-            print(f"[{camera_name}] Already running")
+            print(f"[{camera_name}] ⏳ Already running")
             continue
-        print(f"[{camera_name}] Starting...")
+        print(f"[{camera_name}] ▶️ Starting...")
         start_camera(camera_name)
-    print("All cameras started.")
+    
+    print("\n" + "=" * 60)
+    print("✅ All cameras started.")
+    print("=" * 60 + "\n")
 
 def stop_all_cameras():
-    print("Stopping all cameras...")
+    print("\n" + "=" * 60)
+    print("        SUDARSHANA-AI")
+    print("        STOPPING DETECTION")
+    print("=" * 60 + "\n")
+    
     for camera_name in CAMERAS:
         if camera_running.get(camera_name, False):
-            print(f"[{camera_name}] Stopping...")
+            print(f"[{camera_name}] ⏹️ Stopping...")
             stop_camera(camera_name)
-    print("All cameras stopped.")
+    
+    print("\n" + "=" * 60)
+    print("✅ All cameras stopped.")
+    print("=" * 60 + "\n")
 
 # ============================================================
 # MAIN
@@ -256,7 +336,25 @@ if __name__ == "__main__":
     if not MODEL_PATH.exists():
         raise FileNotFoundError(f"YOLO model not found: {MODEL_PATH}")
 
+    # Check all videos before starting
+    print("📹 Checking video files...")
+    print("-" * 40)
+    for cam_name, video_path in CAMERAS.items():
+        if video_path.exists():
+            print(f"✅ {cam_name}: {video_path.name} exists")
+        else:
+            print(f"❌ {cam_name}: {video_path.name} NOT FOUND")
+    print("-" * 40 + "\n")
+
     start_all_cameras()
+
+    try:
+        # Keep running until interrupted
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\n⚠️ Interrupted by user")
+        stop_all_cameras()
 
     for thread in camera_threads.values():
         thread.join()

@@ -4,12 +4,13 @@ import {
   Shield,
   AlertCircle,
   Camera,
-  Clock as ClockIcon,
   Maximize2,
   CheckCircle,
   Truck,
   User,
   Radio,
+  Activity,
+  AlertTriangle,
 } from "lucide-react";
 
 // ============================================================
@@ -72,10 +73,11 @@ const Threats: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [violations, setViolations] = useState<Violation[]>([]);
-  const [selectedCamera, setSelectedCamera] = useState<string>("CAM-03");
   const [fullscreenCam, setFullscreenCam] = useState<string | null>(null);
+  const [detectionActive, setDetectionActive] = useState(false);
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
-  const [videoSize, setVideoSize] = useState({ width: 1280, height: 720 });
+  const [videoSize, setVideoSize] = useState({ width: 1920, height: 1080 });
+  const [lastUpdate, setLastUpdate] = useState<string>("");
 
   // Camera configuration for restricted zones
   const restrictedCameras = [
@@ -86,13 +88,13 @@ const Threats: React.FC = () => {
       videoSrc: cam3Video,
       backendKey: "cam3",
       resolution: "1080p",
-      fps: 25,
+      fps: 30,
       restrictedPolygon: [
-        { x: 0.2, y: 0.3 },
-        { x: 0.5, y: 0.2 },
-        { x: 0.7, y: 0.35 },
-        { x: 0.6, y: 0.55 },
-        { x: 0.3, y: 0.5 },
+        { x: 0.15, y: 0.2 },
+        { x: 0.5, y: 0.1 },
+        { x: 0.75, y: 0.25 },
+        { x: 0.65, y: 0.55 },
+        { x: 0.25, y: 0.5 },
       ],
     },
     {
@@ -102,16 +104,53 @@ const Threats: React.FC = () => {
       videoSrc: cam4Video,
       backendKey: "cam4",
       resolution: "1080p",
-      fps: 26,
+      fps: 30,
       restrictedPolygon: [
         { x: 0.1, y: 0.1 },
-        { x: 0.4, y: 0.05 },
-        { x: 0.6, y: 0.15 },
+        { x: 0.45, y: 0.05 },
+        { x: 0.65, y: 0.15 },
         { x: 0.55, y: 0.4 },
         { x: 0.2, y: 0.35 },
       ],
     },
   ];
+
+  // ---- Start/stop detection ----
+  const startDetection = async () => {
+    try {
+      const response = await fetch("http://localhost:8000/api/detection/start", {
+        method: "POST",
+      });
+      if (response.ok) {
+        setDetectionActive(true);
+        console.log("✅ Detection started");
+      }
+    } catch (err) {
+      console.error("❌ Failed to start detection:", err);
+    }
+  };
+
+  const stopDetection = async () => {
+    try {
+      const response = await fetch("http://localhost:8000/api/detection/stop", {
+        method: "POST",
+      });
+      if (response.ok) {
+        setDetectionActive(false);
+        console.log("⏹️ Detection stopped");
+      }
+    } catch (err) {
+      console.error("❌ Failed to stop detection:", err);
+    }
+  };
+
+  // ---- Auto-start detection on mount ----
+  useEffect(() => {
+    startDetection();
+    return () => {
+      stopDetection();
+    };
+  }, []);
 
   // ---- Fetch live data ----
   useEffect(() => {
@@ -125,11 +164,23 @@ const Threats: React.FC = () => {
         const data: LiveDetectionResponse = await response.json();
         if (mounted) {
           setLiveData(data);
+          setLastUpdate(new Date().toLocaleTimeString());
           setLoading(false);
           setError(null);
+
+          // 🔍 DEBUG: Log all camera data
+          console.log("📡 Live Data Received:", data);
+          Object.entries(data.cameras).forEach(([key, cam]) => {
+            console.log(`📹 [${key}] Visible: ${cam.visible}, Objects: ${cam.objects?.length || 0}`);
+            if (cam.objects && cam.objects.length > 0) {
+              cam.objects.forEach((obj, idx) => {
+                console.log(`  ${idx + 1}. ${obj.class} (${(obj.confidence * 100).toFixed(1)}%) - ${obj.category}`);
+              });
+            }
+          });
         }
       } catch (err) {
-        console.error("Failed to fetch live data:", err);
+        console.error("❌ Failed to fetch live data:", err);
         if (mounted) {
           setError("Failed to connect to detection service");
           setLoading(false);
@@ -154,21 +205,39 @@ const Threats: React.FC = () => {
 
     restrictedCameras.forEach((cam) => {
       const liveCam = liveData.cameras[cam.backendKey];
-      if (!liveCam?.objects) return;
+      
+      // 🔍 DEBUG
+      console.log(`🔍 [${cam.id}] Checking backend key: ${cam.backendKey}`);
+      console.log(`🔍 [${cam.id}] Live cam data:`, liveCam);
+      
+      if (!liveCam?.objects || liveCam.objects.length === 0) {
+        console.log(`🔍 [${cam.id}] No objects found`);
+        return;
+      }
+
+      console.log(`🔍 [${cam.id}] ${liveCam.objects.length} objects found`);
 
       liveCam.objects.forEach((obj) => {
-        // Check if object is inside restricted polygon
-        const centerX = (obj.bounding_box.x1 + obj.bounding_box.x2) / 2 / videoSize.width;
-        const centerY = (obj.bounding_box.y1 + obj.bounding_box.y2) / 2 / videoSize.height;
-        // Simplified check - in production use point-in-polygon algorithm
-        const isInside = isPointInPolygon(centerX, centerY, cam.restrictedPolygon);
+        // Only check Person and Vehicle
+        if (obj.category !== "Person" && obj.category !== "Vehicle") {
+          console.log(`🔍 [${cam.id}] Ignoring ${obj.class} (${obj.category})`);
+          return;
+        }
+
+        const cx = (obj.bounding_box.x1 + obj.bounding_box.x2) / 2;
+        const cy = (obj.bounding_box.y1 + obj.bounding_box.y2) / 2;
+        const nx = cx / videoSize.width;
+        const ny = cy / videoSize.height;
+        const isInside = isPointInPolygon(nx, ny, cam.restrictedPolygon);
+
+        console.log(`🔍 [${cam.id}] ${obj.class} at (${nx.toFixed(2)}, ${ny.toFixed(2)}) - Inside: ${isInside}`);
 
         if (isInside) {
           newViolations.push({
-            id: `VIO-${Date.now()}-${Math.random()}`,
+            id: `VIO-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
             zoneName: cam.zone,
             camera: cam.id,
-            objectType: obj.category === "Vehicle" ? "Vehicle" : "Person",
+            objectType: obj.category,
             confidence: Math.round(obj.confidence * 100),
             timestamp: new Date().toISOString(),
             status: "ACTIVE",
@@ -178,8 +247,26 @@ const Threats: React.FC = () => {
     });
 
     if (newViolations.length > 0) {
-      setViolations((prev) => [...newViolations, ...prev].slice(0, 20));
+      console.log(`🚨 ${newViolations.length} new violations detected!`);
+      setViolations((prev) => {
+        const existing = new Set(prev.map(v => `${v.zoneName}-${v.objectType}`));
+        const unique = newViolations.filter(v => !existing.has(`${v.zoneName}-${v.objectType}`));
+        return [...unique, ...prev].slice(0, 50);
+      });
     }
+
+    // Auto-resolve old violations (after 5 seconds)
+    const now = Date.now();
+    setViolations((prev) =>
+      prev.map((v) => {
+        if (v.status === "RESOLVED") return v;
+        const age = now - new Date(v.timestamp).getTime();
+        if (age > 5000) {
+          return { ...v, status: "RESOLVED" as const };
+        }
+        return v;
+      })
+    );
   }, [liveData]);
 
   // ---- Point-in-polygon helper ----
@@ -190,8 +277,7 @@ const Threats: React.FC = () => {
         yi = polygon[i].y;
       const xj = polygon[j].x,
         yj = polygon[j].y;
-      const intersect = ((yi > y) !== (yj > y)) &&
-        (x < (xj - xi) * (y - yi) / (yj - yi) + xi);
+      const intersect = yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi;
       if (intersect) inside = !inside;
     }
     return inside;
@@ -212,7 +298,6 @@ const Threats: React.FC = () => {
     accentRed: "#D9534F",
     accentBlue: "#4A8C9E",
     surfaceDark: "#0A120E",
-
   };
 
   // ---- STYLES ----
@@ -303,7 +388,7 @@ const Threats: React.FC = () => {
 
   const feedContainerStyle: React.CSSProperties = {
     position: "relative",
-    background: colors.surfaceDark || "#0A120E",
+    background: colors.surfaceDark,
     borderRadius: "4px",
     overflow: "hidden",
     border: `1px solid ${colors.borderLight}`,
@@ -315,7 +400,7 @@ const Threats: React.FC = () => {
     height: "auto",
     aspectRatio: "16/9",
     objectFit: "cover",
-    background: colors.surfaceDark || "#0A120E",
+    background: colors.surfaceDark,
     display: "block",
   };
 
@@ -384,8 +469,6 @@ const Threats: React.FC = () => {
     y1: number,
     x2: number,
     y2: number,
-    confidence: number,
-    label: string,
     isRestricted: boolean
   ): React.CSSProperties => {
     const top = (y1 / videoSize.height) * 100;
@@ -403,22 +486,24 @@ const Threats: React.FC = () => {
       background: `${color}15`,
       pointerEvents: "auto",
       cursor: "pointer",
-      boxShadow: isRestricted ? `0 0 20px ${color}66` : "none",
+      boxShadow: isRestricted ? `0 0 25px ${color}66` : "none",
       animation: isRestricted ? "pulse-critical 1.5s infinite" : "none",
+      borderRadius: "2px",
     };
   };
 
   const bboxLabelStyle: React.CSSProperties = {
     position: "absolute",
-    top: "-20px",
+    top: "-22px",
     left: "0px",
-    background: "rgba(0,0,0,0.8)",
+    background: "rgba(0,0,0,0.85)",
     color: "#fff",
-    padding: "1px 6px",
+    padding: "2px 8px",
     borderRadius: "2px",
     fontSize: "9px",
     fontWeight: 600,
     whiteSpace: "nowrap",
+    letterSpacing: "0.3px",
   };
 
   // ---- Restricted zone overlay ----
@@ -465,17 +550,58 @@ const Threats: React.FC = () => {
   const activeViolations = violations.filter(v => v.status === "ACTIVE");
   const totalViolations = violations.length;
 
-  // Calculate stats from live data
-  const totalObjects = liveData
-    ? Object.values(liveData.cameras).reduce(
-      (sum, cam) => sum + (cam.objects?.length || 0),
-      0
-    )
-    : 0;
+  // Count Person and Vehicle objects from all cameras
+  let totalObjects = 0;
+  let camObjects: Record<string, number> = {};
+
+  if (liveData) {
+    Object.entries(liveData.cameras).forEach(([key, cam]) => {
+      const filtered = cam.objects?.filter(o => o.category === "Person" || o.category === "Vehicle") || [];
+      camObjects[key] = filtered.length;
+      totalObjects += filtered.length;
+    });
+  }
 
   const activeZones = restrictedCameras.filter(
     (cam) => liveData?.cameras[cam.backendKey]?.visible
   ).length;
+
+  if (loading) {
+    return (
+      <div style={containerStyle}>
+        <div style={{ textAlign: "center", padding: "4rem", color: colors.textSecondary }}>
+          <Activity size={32} style={{ animation: "spin 2s linear infinite" }} />
+          <p style={{ marginTop: "1rem" }}>Connecting to detection service...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div style={containerStyle}>
+        <div style={{ textAlign: "center", padding: "4rem", color: colors.accentRed }}>
+          <AlertCircle size={32} />
+          <p style={{ marginTop: "1rem" }}>{error}</p>
+          <button
+            style={{
+              marginTop: "1rem",
+              padding: "0.5rem 1.5rem",
+              background: colors.accentGreen,
+              border: "none",
+              borderRadius: "4px",
+              color: colors.textPrimary,
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+            onClick={() => window.location.reload()}
+          >
+            Retry
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div style={containerStyle}>
@@ -491,13 +617,41 @@ const Threats: React.FC = () => {
           </div>
           <div style={headerSubtitleStyle}>
             Live surveillance and no-entry zone intrusion detection.
+            <span style={{ fontSize: "10px", marginLeft: "0.5rem", color: colors.textSecondary }}>
+              Last update: {lastUpdate}
+            </span>
+            <span style={{ fontSize: "10px", marginLeft: "0.5rem", color: totalObjects > 0 ? colors.accentGreen : colors.textSecondary }}>
+              • {totalObjects} objects detected
+            </span>
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
           <span style={statusBadgeStyle}>
-            <Radio size={12} color={colors.accentGreen} />
-            MONITORING ACTIVE
+            <Radio size={12} color={detectionActive ? colors.accentGreen : colors.accentRed} />
+            {detectionActive ? "MONITORING ACTIVE" : "MONITORING PAUSED"}
           </span>
+          <button
+            style={{
+              padding: "0.3rem 0.75rem",
+              background: detectionActive ? colors.accentRed : colors.accentGreen,
+              border: "none",
+              borderRadius: "4px",
+              color: colors.textPrimary,
+              cursor: "pointer",
+              fontSize: "11px",
+              fontWeight: 600,
+              fontFamily: "inherit",
+            }}
+            onClick={() => {
+              if (detectionActive) {
+                stopDetection();
+              } else {
+                startDetection();
+              }
+            }}
+          >
+            {detectionActive ? "STOP" : "START"}
+          </button>
         </div>
       </div>
 
@@ -526,15 +680,29 @@ const Threats: React.FC = () => {
         {restrictedCameras.map((cam) => {
           const liveCam = liveData?.cameras?.[cam.backendKey];
           const isVisible = liveCam?.visible || false;
-          const objects = liveCam?.objects || [];
+          
+          // Filter only Person and Vehicle from backend
+          const allObjects = liveCam?.objects || [];
+          const objects = allObjects.filter(
+            (obj) => obj.category === "Person" || obj.category === "Vehicle"
+          );
+          
           const fps = liveCam?.fps || cam.fps;
           const hasObjects = objects.length > 0;
           const hasIntrusion = hasObjects && objects.some((obj) => {
-            const cx = (obj.bounding_box.x1 + obj.bounding_box.x2) / 2 / videoSize.width;
-            const cy = (obj.bounding_box.y1 + obj.bounding_box.y2) / 2 / videoSize.height;
-            return isPointInPolygon(cx, cy, cam.restrictedPolygon);
+            const cx = (obj.bounding_box.x1 + obj.bounding_box.x2) / 2;
+            const cy = (obj.bounding_box.y1 + obj.bounding_box.y2) / 2;
+            const nx = cx / videoSize.width;
+            const ny = cy / videoSize.height;
+            return isPointInPolygon(nx, ny, cam.restrictedPolygon);
           });
           const isFullscreen = fullscreenCam === cam.id;
+
+          const totalDetections = allObjects.length;
+
+          // 🔍 DEBUG
+          console.log(`📹 [${cam.id}] backendKey: ${cam.backendKey}, liveCam:`, liveCam);
+          console.log(`📹 [${cam.id}] objects: ${objects.length}, hasIntrusion: ${hasIntrusion}`);
 
           return (
             <div
@@ -544,16 +712,14 @@ const Threats: React.FC = () => {
                 borderColor: hasIntrusion
                   ? colors.accentRed
                   : hasObjects
-                    ? colors.accentAmber
-                    : colors.borderLight,
+                  ? colors.accentAmber
+                  : colors.borderLight,
                 boxShadow: hasIntrusion ? `0 0 30px ${colors.accentRed}44` : "none",
                 gridColumn: isFullscreen ? "1 / -1" : "auto",
               }}
             >
               <video
-                ref={(el) => {
-                  videoRefs.current[cam.id] = el;
-                }}
+                ref={(el) => {(videoRefs.current[cam.id] = el)}}
                 src={cam.videoSrc}
                 style={feedVideoStyle}
                 autoPlay
@@ -562,10 +728,9 @@ const Threats: React.FC = () => {
                 playsInline
                 onLoadedMetadata={(e) => {
                   const video = e.currentTarget;
-
                   setVideoSize({
-                    width: video.videoWidth || 1280,
-                    height: video.videoHeight || 720,
+                    width: video.videoWidth || 1920,
+                    height: video.videoHeight || 1080,
                   });
                 }}
               />
@@ -589,7 +754,7 @@ const Threats: React.FC = () => {
                           `${p.x * videoSize.width},${p.y * videoSize.height}`
                       )
                       .join(" ")}
-                    fill="rgba(217, 83, 79, 0.15)"
+                    fill="rgba(217, 83, 79, 0.12)"
                     stroke={colors.accentRed}
                     strokeWidth="2"
                     strokeDasharray="8,4"
@@ -600,18 +765,21 @@ const Threats: React.FC = () => {
                     fill={colors.accentRed}
                     fontSize="12"
                     fontWeight="bold"
+                    style={{ textShadow: "0 0 10px rgba(0,0,0,0.8)" }}
                   >
-                    RESTRICTED ZONE
+                    ⚠ RESTRICTED ZONE
                   </text>
                 </svg>
               </div>
 
-              {/* Bounding Boxes */}
+              {/* Bounding Boxes - Only Person and Vehicle */}
               <div style={bboxContainerStyle}>
                 {objects.map((obj, idx) => {
-                  const cx = (obj.bounding_box.x1 + obj.bounding_box.x2) / 2 / videoSize.width;
-                  const cy = (obj.bounding_box.y1 + obj.bounding_box.y2) / 2 / videoSize.height;
-                  const isInside = isPointInPolygon(cx, cy, cam.restrictedPolygon);
+                  const cx = (obj.bounding_box.x1 + obj.bounding_box.x2) / 2;
+                  const cy = (obj.bounding_box.y1 + obj.bounding_box.y2) / 2;
+                  const nx = cx / videoSize.width;
+                  const ny = cy / videoSize.height;
+                  const isInside = isPointInPolygon(nx, ny, cam.restrictedPolygon);
                   const color = isInside ? colors.accentRed : colors.accentGreen;
                   const label = `${obj.category === "Vehicle" ? "🚗" : "👤"} ${obj.class} ${Math.round(obj.confidence * 100)}%`;
 
@@ -624,8 +792,6 @@ const Threats: React.FC = () => {
                         obj.bounding_box.y1,
                         obj.bounding_box.x2,
                         obj.bounding_box.y2,
-                        obj.confidence,
-                        label,
                         isInside
                       )}
                     >
@@ -665,6 +831,16 @@ const Threats: React.FC = () => {
                       }}
                     >
                       {cam.zone}
+                      {hasObjects && (
+                        <span style={{ marginLeft: "0.5rem", color: colors.accentAmber }}>
+                          • {objects.length} Person/Vehicle
+                        </span>
+                      )}
+                      {totalDetections > objects.length && (
+                        <span style={{ marginLeft: "0.5rem", color: colors.textSecondary, fontSize: "8px" }}>
+                          ({totalDetections - objects.length} animals ignored)
+                        </span>
+                      )}
                     </div>
                   </div>
                   <div style={feedStatusStyle}>
@@ -683,7 +859,7 @@ const Threats: React.FC = () => {
                 </div>
 
                 <div style={feedBottomBarStyle}>
-                  <div style={{ display: "flex", gap: "1rem" }}>
+                  <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
                     <span>
                       <span
                         style={{
@@ -697,7 +873,7 @@ const Threats: React.FC = () => {
                       />
                       {isVisible ? "LIVE" : "OFFLINE"}
                     </span>
-                    <span>FPS: {fps}</span>
+                    <span>FPS: {typeof fps === 'number' ? fps.toFixed(1) : fps}</span>
                     <span>Objects: {objects.length}</span>
                     <span>
                       Status:{" "}
@@ -706,16 +882,16 @@ const Threats: React.FC = () => {
                           color: hasIntrusion
                             ? colors.accentRed
                             : hasObjects
-                              ? colors.accentAmber
-                              : colors.accentGreen,
+                            ? colors.accentAmber
+                            : colors.accentGreen,
                           fontWeight: 600,
                         }}
                       >
                         {hasIntrusion
                           ? "⚠ INTRUSION"
                           : hasObjects
-                            ? "DETECTING"
-                            : "CLEAR"}
+                          ? "DETECTING"
+                          : "CLEAR"}
                       </span>
                     </span>
                   </div>
@@ -742,6 +918,27 @@ const Threats: React.FC = () => {
           );
         })}
       </div>
+
+      {/* NO DETECTION WARNING */}
+      {totalObjects === 0 && detectionActive && (
+        <div
+          style={{
+            background: `${colors.accentAmber}15`,
+            border: `1px solid ${colors.accentAmber}`,
+            padding: "0.75rem 1rem",
+            borderRadius: "4px",
+            marginBottom: "1rem",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.5rem",
+          }}
+        >
+          <AlertTriangle size={18} color={colors.accentAmber} />
+          <span style={{ fontSize: "13px", color: colors.textSecondary }}>
+            No Person or Vehicle detected. Make sure your videos contain people or vehicles.
+          </span>
+        </div>
+      )}
 
       {/* ACTIVE INTRUSIONS */}
       <div style={violationsStyle}>
@@ -864,6 +1061,10 @@ const Threats: React.FC = () => {
         @keyframes pulse-critical {
           0%, 100% { box-shadow: 0 0 0 0 rgba(217, 83, 79, 0.4); }
           50% { box-shadow: 0 0 0 8px rgba(217, 83, 79, 0); }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       `}</style>
     </div>
