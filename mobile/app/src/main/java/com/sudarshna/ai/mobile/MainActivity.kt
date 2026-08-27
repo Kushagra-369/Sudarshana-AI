@@ -1,117 +1,158 @@
 package com.sudarshna.ai.mobile
 
+import android.annotation.SuppressLint
 import android.os.Bundle
+import android.webkit.JavascriptInterface
+import android.webkit.WebView
+import android.webkit.WebViewClient
 import androidx.activity.ComponentActivity
-import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import com.sudarshna.ai.mobile.ui.theme.SudarshnaAIMobileTheme
-import kotlinx.coroutines.launch
+import com.google.android.gms.auth.api.signin.GoogleSignIn
+import com.google.android.gms.auth.api.signin.GoogleSignInOptions
+import com.google.android.gms.common.api.ApiException
 
 class MainActivity : ComponentActivity() {
 
+    private lateinit var webView: WebView
+
+    companion object {
+        private const val RC_GOOGLE_SIGN_IN = 1001
+
+        // IMPORTANT:
+        // Put your WEB APPLICATION OAuth Client ID here.
+        // NOT the Android Client ID.
+        private const val WEB_CLIENT_ID =
+            "923952499756-55jd90vtj91m290barofpfdh6tj2d8hf.apps.googleusercontent.com"
+    }
+
+    @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        setContent {
-            SudarshnaAIMobileTheme {
-                LoginScreen()
-            }
-        }
+        webView = WebView(this)
+
+        webView.settings.javaScriptEnabled = true
+        webView.settings.domStorageEnabled = true
+
+        webView.webViewClient = WebViewClient()
+
+        webView.addJavascriptInterface(
+            GoogleAuthBridge(),
+            "AndroidGoogleAuth"
+        )
+
+        webView.loadUrl(ApiConfig.WEB_URL)
+
+        setContentView(webView)
     }
-}
 
-@Composable
-fun LoginScreen() {
+    private fun startNativeGoogleSignIn() {
 
-    var email by remember { mutableStateOf("") }
-    var password by remember { mutableStateOf("") }
-    var message by remember { mutableStateOf("") }
-    var loading by remember { mutableStateOf(false) }
+        val gso = GoogleSignInOptions.Builder(
+            GoogleSignInOptions.DEFAULT_SIGN_IN
+        )
+            .requestIdToken(WEB_CLIENT_ID)
+            .requestEmail()
+            .build()
 
-    val scope = rememberCoroutineScope()
+        val googleClient =
+            GoogleSignIn.getClient(this, gso)
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(24.dp),
-        verticalArrangement = Arrangement.Center
+        startActivityForResult(
+            googleClient.signInIntent,
+            RC_GOOGLE_SIGN_IN
+        )
+    }
+
+    override fun onActivityResult(
+        requestCode: Int,
+        resultCode: Int,
+        data: android.content.Intent?
     ) {
-
-        Text(
-            text = "SUDARSHANA-AI",
-            style = MaterialTheme.typography.headlineMedium
+        super.onActivityResult(
+            requestCode,
+            resultCode,
+            data
         )
 
-        Spacer(modifier = Modifier.height(8.dp))
+        if (requestCode != RC_GOOGLE_SIGN_IN) {
+            return
+        }
 
-        Text(
-            text = "DEFENCE INTELLIGENCE SYSTEM",
-            style = MaterialTheme.typography.bodySmall
-        )
+        val task =
+            GoogleSignIn.getSignedInAccountFromIntent(data)
 
-        Spacer(modifier = Modifier.height(32.dp))
+        try {
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { email = it },
-            label = { Text("Email") },
-            modifier = Modifier.fillMaxWidth()
-        )
+            val account = task.getResult(
+                ApiException::class.java
+            )
 
-        Spacer(modifier = Modifier.height(12.dp))
+            val idToken = account.idToken
 
-        OutlinedTextField(
-            value = password,
-            onValueChange = { password = it },
-            label = { Text("Password") },
-            modifier = Modifier.fillMaxWidth()
-        )
+            if (idToken == null) {
+                sendGoogleError(
+                    "Google ID token was not received."
+                )
+                return
+            }
 
-        Spacer(modifier = Modifier.height(20.dp))
+            // Send the Google ID token to React
+            val escapedToken =
+                idToken
+                    .replace("\\", "\\\\")
+                    .replace("'", "\\'")
 
-        Button(
-            onClick = {
+            runOnUiThread {
 
-                scope.launch {
+                webView.evaluateJavascript(
+                    """
+                    window.onNativeGoogleSuccess &&
+                    window.onNativeGoogleSuccess('$escapedToken');
+                    """.trimIndent(),
+                    null
+                )
+            }
 
-                    try {
-                        loading = true
-                        message = ""
+        } catch (e: ApiException) {
 
-                        val response = ApiService.login(
-                            email = email,
-                            password = password
-                        )
+            android.util.Log.e(
+                "GOOGLE_SIGNIN",
+                "Google Sign-In failed",
+                e
+            )
 
-                        message = response.toString()
-
-                    } catch (e: Exception) {
-                        message = e.message ?: "Login failed"
-                    } finally {
-                        loading = false
-                    }
-                }
-            },
-            enabled = !loading &&
-                    email.isNotBlank() &&
-                    password.isNotBlank(),
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Text(
-                if (loading) "Signing in..."
-                else "SIGN IN"
+            sendGoogleError(
+                "Google Sign-In failed: ${e.statusCode}"
             )
         }
+    }
 
-        if (message.isNotBlank()) {
+    private fun sendGoogleError(message: String) {
 
-            Spacer(modifier = Modifier.height(16.dp))
+        val escapedMessage =
+            message
+                .replace("\\", "\\\\")
+                .replace("'", "\\'")
 
-            Text(text = message)
+        runOnUiThread {
+
+            webView.evaluateJavascript(
+                """
+                window.onNativeGoogleError &&
+                window.onNativeGoogleError('$escapedMessage');
+                """.trimIndent(),
+                null
+            )
+        }
+    }
+
+    inner class GoogleAuthBridge {
+
+        @JavascriptInterface
+        fun startGoogleSignIn() {
+            runOnUiThread {
+                startNativeGoogleSignIn()
+            }
         }
     }
 }

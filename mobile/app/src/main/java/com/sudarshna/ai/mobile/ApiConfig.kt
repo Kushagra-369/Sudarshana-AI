@@ -2,7 +2,9 @@ package com.sudarshna.ai.mobile
 
 object ApiConfig {
 
-    // Android Emulator → PC localhost
-    const val BASE_URL = "http://10.0.2.2:4321"
+    // Backend
+    const val BASE_URL = "http://192.168.1.13:4321"
 
+    // Existing React/Vite website
+    const val WEB_URL = "http://192.168.1.13:5173"
 }

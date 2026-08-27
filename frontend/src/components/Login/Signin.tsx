@@ -17,6 +17,17 @@ import {
     KeyRound,
 } from "lucide-react";
 
+declare global {
+    interface Window {
+        AndroidGoogleAuth?: {
+            startGoogleSignIn: () => void;
+        };
+
+        onNativeGoogleSuccess?: (token: string) => void;
+        onNativeGoogleError?: (message: string) => void;
+    }
+}
+
 type LoginRole = "USER" | "BASE_HEAD" | "ADMIN";
 
 
@@ -959,6 +970,26 @@ const Signin: React.FC = () => {
         }
     };
 
+    React.useEffect(() => {
+        window.onNativeGoogleSuccess = (token: string) => {
+            console.log("NATIVE GOOGLE TOKEN RECEIVED");
+
+            handleGoogleSuccess({
+                credential: token
+            });
+        };
+
+        window.onNativeGoogleError = (message: string) => {
+            console.error("NATIVE GOOGLE ERROR:", message);
+            setError(message);
+            setGoogleLoading(false);
+        };
+
+        return () => {
+            delete window.onNativeGoogleSuccess;
+            delete window.onNativeGoogleError;
+        };
+    }, []);
     // =====================================================
     // FORGOT PASSWORD
     // =====================================================
@@ -1409,18 +1440,40 @@ const Signin: React.FC = () => {
             ================================================= */}
 
                         <div style={styles.googleButtonWrapper}>
-                            <GoogleLogin
-                                onSuccess={handleGoogleSuccess}
-                                onError={() => {
-                                    setError("Google Sign-In failed.");
-                                }}
-                                useOneTap={false}
-                                theme="filled_black"
-                                size="large"
-                                text="continue_with"
-                                shape="rectangular"
-                                width="360"
-                            />
+                            {window.AndroidGoogleAuth ? (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setError("");
+
+                                        if (window.AndroidGoogleAuth) {
+                                            window.AndroidGoogleAuth.startGoogleSignIn();
+                                        } else {
+                                            setError("Google Sign-In is available only in the Android app.");
+                                        }
+                                    }}
+                                    style={{
+                                        width: "360px",
+                                        height: "40px",
+                                        cursor: "pointer",
+                                    }}
+                                >
+                                    Continue with Google
+                                </button>
+                            ) : (
+                                <GoogleLogin
+                                    onSuccess={handleGoogleSuccess}
+                                    onError={() => {
+                                        setError("Google Sign-In failed.");
+                                    }}
+                                    useOneTap={false}
+                                    theme="filled_black"
+                                    size="large"
+                                    text="continue_with"
+                                    shape="rectangular"
+                                    width="360"
+                                />
+                            )}
                         </div>
                         {/* =================================================
                 ROLE INFO
