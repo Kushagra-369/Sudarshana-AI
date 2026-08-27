@@ -171,7 +171,7 @@ const Navbar: React.FC<NavbarProps> = ({
     { id: "command", label: "COMMAND" },
     { id: "surveillance", label: "SURVEILLANCE" },
     { id: "threats", label: "RESTRICTED ZONES" },
-    { id: "incidents", label: "INCIDENTS" },
+    { id: "incidents", label: "MY TEAM" },
     { id: "timeline", label: "TIMELINE" },
     { id: "analytics", label: "ANALYTICS" },
     { id: "assistant", label: "AI ASSISTANT" },

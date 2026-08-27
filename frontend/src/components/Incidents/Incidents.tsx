@@ -1,132 +1,100 @@
 // components/Incidents.tsx
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
-  AlertCircle,
-  Filter,
+  Users,
+  UserPlus,
   Search,
-
+  MapPin,
+  Radio,
+  Signal,
+  Navigation,
+  Crosshair,
+  Wifi,
+  WifiOff,
+  X,
+  Check,
   ChevronRight,
-
   RefreshCw,
-
+  AlertCircle,
+  Eye,
+  User,
+  Mail,
+  Clock,
+  Activity,
+  Circle,
+  Plus,
+  Trash2,
 } from "lucide-react";
 
 // ============================================================
 // TYPES
 // ============================================================
-interface Incident {
+interface Personnel {
   id: string;
-  type: "Vehicle" | "Person" | "Other";
-  location: string;
-  sector: string;
-  timestamp: string;
-  severity: "CRITICAL" | "HIGH" | "MEDIUM" | "LOW";
-  score: number;
-  status: "ACTIVE" | "UNDER_REVIEW" | "RESOLVED" | "DISMISSED";
-  threatId: string;
-  objectId: string;
-  description: string;
-  assignedTo?: string;
-  resolvedAt?: string;
-  createdAt: string;
-  updatedAt: string;
-  requiresReview: boolean;
-  evidence: string[];
+  name: string;
+  email: string;
+  status: "ONLINE" | "WEAK_SIGNAL" | "CONNECTION_LOST";
+  latitude: number;
+  longitude: number;
+  lastUpdate: number;
+  accuracy: number;
+  communication: string;
+}
+
+interface RegisteredUser {
+  id: string;
+  name: string;
+  email: string;
+  status: "ONLINE" | "WEAK_SIGNAL" | "CONNECTION_LOST";
 }
 
 // ============================================================
 // MOCK DATA
 // ============================================================
-const mockIncidents: Incident[] = [
+const mockRegisteredUsers: RegisteredUser[] = [
+  { id: "P-001", name: "Arjun Sharma", email: "arjun.sharma@example.com", status: "ONLINE" },
+  { id: "P-002", name: "Rohan Verma", email: "rohan.verma@example.com", status: "CONNECTION_LOST" },
+  { id: "P-003", name: "Vikram Singh", email: "vikram.singh@example.com", status: "ONLINE" },
+  { id: "P-004", name: "Aman Patel", email: "aman.patel@example.com", status: "WEAK_SIGNAL" },
+  { id: "P-005", name: "Sneha Reddy", email: "sneha.reddy@example.com", status: "ONLINE" },
+  { id: "P-006", name: "Karan Joshi", email: "karan.joshi@example.com", status: "CONNECTION_LOST" },
+  { id: "P-007", name: "Priya Nair", email: "priya.nair@example.com", status: "ONLINE" },
+  { id: "P-008", name: "Aditya Mehta", email: "aditya.mehta@example.com", status: "WEAK_SIGNAL" },
+];
+
+const initialTeamMembers: Personnel[] = [
   {
-    id: "INC-001",
-    type: "Vehicle",
-    location: "Sector B - Main Road",
-    sector: "B",
-    timestamp: "2025-04-13 14:32:18",
-    severity: "CRITICAL",
-    score: 82,
-    status: "ACTIVE",
-    threatId: "THR-001",
-    objectId: "OBJ-001",
-    description: "Vehicle entered restricted sector B with unusual timing and movement pattern.",
-    assignedTo: "Captain Singh",
-    createdAt: "2025-04-13 14:32:18",
-    updatedAt: "2025-04-13 14:35:22",
-    requiresReview: true,
-    evidence: ["Restricted zone entry", "Unusual timestamp", "Abnormal movement pattern"],
+    id: "P-001",
+    name: "Arjun Sharma",
+    email: "arjun.sharma@example.com",
+    status: "ONLINE",
+    latitude: 28.6139,
+    longitude: 77.2090,
+    lastUpdate: Date.now(),
+    accuracy: 4.2,
+    communication: "LOCAL RADIO LINK",
   },
   {
-    id: "INC-002",
-    type: "Person",
-    location: "Sector A - Checkpoint",
-    sector: "A",
-    timestamp: "2025-04-13 14:28:45",
-    severity: "HIGH",
-    score: 67,
-    status: "UNDER_REVIEW",
-    threatId: "THR-002",
-    objectId: "OBJ-002",
-    description: "Person exhibiting unusual movement patterns near checkpoint A.",
-    assignedTo: "Lieutenant Kumar",
-    createdAt: "2025-04-13 14:28:45",
-    updatedAt: "2025-04-13 14:30:12",
-    requiresReview: true,
-    evidence: ["Unusual movement pattern", "Proximity to restricted zone"],
+    id: "P-003",
+    name: "Vikram Singh",
+    email: "vikram.singh@example.com",
+    status: "ONLINE",
+    latitude: 28.6145,
+    longitude: 77.2105,
+    lastUpdate: Date.now(),
+    accuracy: 3.8,
+    communication: "SATELLITE LINK",
   },
   {
-    id: "INC-003",
-    type: "Vehicle",
-    location: "Sector C - Highway",
-    sector: "C",
-    timestamp: "2025-04-13 14:15:22",
-    severity: "MEDIUM",
-    score: 48,
-    status: "ACTIVE",
-    threatId: "THR-003",
-    objectId: "OBJ-003",
-    description: "Vehicle detected with abnormal speed pattern on highway C.",
-    createdAt: "2025-04-13 14:15:22",
-    updatedAt: "2025-04-13 14:20:45",
-    requiresReview: false,
-    evidence: ["Abnormal speed", "Erratic movement"],
-  },
-  {
-    id: "INC-004",
-    type: "Person",
-    location: "Sector D - Perimeter",
-    sector: "D",
-    timestamp: "2025-04-13 13:58:03",
-    severity: "LOW",
-    score: 35,
-    status: "RESOLVED",
-    threatId: "THR-004",
-    objectId: "OBJ-004",
-    description: "Person briefly loitering at perimeter D, resolved.",
-    assignedTo: "Lieutenant Patel",
-    resolvedAt: "2025-04-13 14:05:30",
-    createdAt: "2025-04-13 13:58:03",
-    updatedAt: "2025-04-13 14:05:30",
-    requiresReview: false,
-    evidence: ["Brief loitering"],
-  },
-  {
-    id: "INC-005",
-    type: "Vehicle",
-    location: "Sector B - East Gate",
-    sector: "B",
-    timestamp: "2025-04-13 13:42:51",
-    severity: "HIGH",
-    score: 72,
-    status: "ACTIVE",
-    threatId: "THR-005",
-    objectId: "OBJ-005",
-    description: "Vehicle detected at East Gate with unauthorized presence.",
-    assignedTo: "Captain Singh",
-    createdAt: "2025-04-13 13:42:51",
-    updatedAt: "2025-04-13 13:48:33",
-    requiresReview: true,
-    evidence: ["Unauthorized presence", "Suspicious timing"],
+    id: "P-005",
+    name: "Sneha Reddy",
+    email: "sneha.reddy@example.com",
+    status: "WEAK_SIGNAL",
+    latitude: 28.6128,
+    longitude: 77.2082,
+    lastUpdate: Date.now() - 120000,
+    accuracy: 12.5,
+    communication: "WEAK RADIO",
   },
 ];
 
@@ -134,11 +102,12 @@ const mockIncidents: Incident[] = [
 // COMPONENT
 // ============================================================
 const Incidents: React.FC = () => {
+  const [teamMembers, setTeamMembers] = useState<Personnel[]>(initialTeamMembers);
+  const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterSeverity, setFilterSeverity] = useState<string>("ALL");
-  const [filterStatus, setFilterStatus] = useState<string>("ALL");
-  const [filterType, setFilterType] = useState<string>("ALL");
-  const [expandedIncident, setExpandedIncident] = useState<string | null>(null);
+  const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [expandedMember, setExpandedMember] = useState<string | null>(null);
+  const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
 
   // ---- COLORS ----
   const colors = {
@@ -156,6 +125,125 @@ const Incidents: React.FC = () => {
     accentBlue: "#4A8C9E",
   };
 
+  // ---- LIVE LOCATION UPDATES ----
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setTeamMembers((prev) =>
+        prev.map((member) => {
+          if (member.status === "CONNECTION_LOST") return member;
+
+          const isWeak = member.status === "WEAK_SIGNAL";
+          const shouldUpdate = !isWeak || Math.random() > 0.5;
+
+          if (!shouldUpdate) return member;
+
+          // Small random movement (simulating real GPS)
+          const latChange = (Math.random() - 0.5) * 0.00005;
+          const lngChange = (Math.random() - 0.5) * 0.00005;
+
+          return {
+            ...member,
+            latitude: member.latitude + latChange,
+            longitude: member.longitude + lngChange,
+            lastUpdate: Date.now(),
+          };
+        })
+      );
+    }, 3000);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // ---- Statistics ----
+  const stats = {
+    total: teamMembers.length,
+    online: teamMembers.filter((m) => m.status === "ONLINE").length,
+    weakSignal: teamMembers.filter((m) => m.status === "WEAK_SIGNAL").length,
+    connectionLost: teamMembers.filter((m) => m.status === "CONNECTION_LOST").length,
+  };
+
+  // ---- Status helpers ----
+  const getStatusColor = (status: string): string => {
+    switch (status) {
+      case "ONLINE":
+        return colors.accentGreen;
+      case "WEAK_SIGNAL":
+        return colors.accentAmber;
+      case "CONNECTION_LOST":
+        return colors.accentRed;
+      default:
+        return colors.textSecondary;
+    }
+  };
+
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case "ONLINE":
+        return "ONLINE";
+      case "WEAK_SIGNAL":
+        return "WEAK SIGNAL";
+      case "CONNECTION_LOST":
+        return "CONNECTION LOST";
+      default:
+        return status;
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "ONLINE":
+        return <Wifi size={14} color={colors.accentGreen} />;
+      case "WEAK_SIGNAL":
+        return <Signal size={14} color={colors.accentAmber} />;
+      case "CONNECTION_LOST":
+        return <WifiOff size={14} color={colors.accentRed} />;
+      default:
+        return <Activity size={14} color={colors.textSecondary} />;
+    }
+  };
+
+  // ---- Modal handlers ----
+  const handleAddToTeam = () => {
+    const selected = mockRegisteredUsers.filter((u) => selectedUsers.includes(u.id));
+    const newMembers: Personnel[] = selected.map((u) => ({
+      id: u.id,
+      name: u.name,
+      email: u.email,
+      status: u.status as "ONLINE" | "WEAK_SIGNAL" | "CONNECTION_LOST",
+      latitude: 28.6 + Math.random() * 0.02,
+      longitude: 77.2 + Math.random() * 0.02,
+      lastUpdate: Date.now(),
+      accuracy: 3 + Math.random() * 8,
+      communication: Math.random() > 0.5 ? "LOCAL RADIO LINK" : "SATELLITE LINK",
+    }));
+
+    const existingIds = new Set(teamMembers.map((m) => m.id));
+    const uniqueNewMembers = newMembers.filter((m) => !existingIds.has(m.id));
+
+    setTeamMembers([...teamMembers, ...uniqueNewMembers]);
+    setShowCreateModal(false);
+    setSelectedUsers([]);
+    setSearchTerm("");
+  };
+
+  const handleRemoveMember = (id: string) => {
+    setTeamMembers(teamMembers.filter((m) => m.id !== id));
+    setRemoveConfirm(null);
+  };
+
+  const toggleUserSelection = (userId: string) => {
+    setSelectedUsers((prev) =>
+      prev.includes(userId) ? prev.filter((id) => id !== userId) : [...prev, userId]
+    );
+  };
+
+  // ---- Filter registered users ----
+  const filteredUsers = mockRegisteredUsers.filter(
+    (user) =>
+      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      user.email.toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
   // ---- STYLES ----
   const containerStyle: React.CSSProperties = {
     background: colors.bg,
@@ -165,7 +253,6 @@ const Incidents: React.FC = () => {
     color: colors.textPrimary,
   };
 
-  // ---- HEADER ----
   const headerStyle: React.CSSProperties = {
     display: "flex",
     justifyContent: "space-between",
@@ -193,133 +280,17 @@ const Incidents: React.FC = () => {
     letterSpacing: "0.5px",
   };
 
-  // ---- FILTERS ----
-  const filterBarStyle: React.CSSProperties = {
-    display: "flex",
-    gap: "0.75rem",
-    marginBottom: "1.5rem",
-    flexWrap: "wrap",
+  const statusBadgeStyle: React.CSSProperties = {
+    display: "inline-flex",
     alignItems: "center",
-  };
-
-  const searchContainerStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    background: colors.surface,
-    border: `1px solid ${colors.border}`,
-    padding: "0.3rem 0.75rem",
-    borderRadius: "4px",
-    flex: 1,
-    minWidth: "200px",
-  };
-
-  const searchInputStyle: React.CSSProperties = {
-    background: "transparent",
-    border: "none",
-    color: colors.textPrimary,
-    fontSize: "12px",
-    padding: "0.25rem 0.5rem",
-    outline: "none",
-    width: "100%",
-    fontFamily: "inherit",
-  };
-
-  const filterSelectStyle: React.CSSProperties = {
-    background: colors.surface,
-    border: `1px solid ${colors.border}`,
-    color: colors.textSecondary,
-    padding: "0.3rem 0.75rem",
-    borderRadius: "4px",
+    gap: "0.4rem",
+    padding: "0.25rem 0.75rem",
+    borderRadius: "20px",
     fontSize: "11px",
-    fontFamily: "inherit",
-    outline: "none",
-    cursor: "pointer",
-  };
-
-  // ---- INCIDENT LIST ----
-  const incidentListStyle: React.CSSProperties = {
-    display: "flex",
-    flexDirection: "column",
-    gap: "0.5rem",
-  };
-
-  const incidentItemStyle = (severity: string, expanded: boolean): React.CSSProperties => {
-    let borderColor = colors.border;
-    if (severity === "CRITICAL") borderColor = colors.accentRed;
-    else if (severity === "HIGH") borderColor = colors.accentOrange;
-    else if (severity === "MEDIUM") borderColor = colors.accentAmber;
-    return {
-      background: colors.surface,
-      border: `1px solid ${expanded ? borderColor : colors.border}`,
-      borderLeft: `4px solid ${borderColor}`,
-      padding: expanded ? "1rem" : "0.75rem 1rem",
-      cursor: "pointer",
-      transition: "all 0.2s",
-    };
-  };
-
-  const incidentHeaderRowStyle: React.CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    alignItems: "center",
-  };
-
-  const severityBadgeStyle = (severity: string): React.CSSProperties => {
-    let color = colors.textSecondary;
-    let bg = colors.surfaceLighter;
-    if (severity === "CRITICAL") { color = colors.accentRed; bg = `${colors.accentRed}15`; }
-    else if (severity === "HIGH") { color = colors.accentOrange; bg = `${colors.accentOrange}15`; }
-    else if (severity === "MEDIUM") { color = colors.accentAmber; bg = `${colors.accentAmber}15`; }
-    return {
-      fontSize: "9px",
-      fontWeight: 700,
-      color,
-      background: bg,
-      padding: "0.15rem 0.5rem",
-      borderRadius: "3px",
-      letterSpacing: "0.5px",
-    };
-  };
-
-  const statusBadgeStyle = (status: string): React.CSSProperties => {
-    let color = colors.textSecondary;
-    if (status === "ACTIVE") color = colors.accentRed;
-    else if (status === "UNDER_REVIEW") color = colors.accentOrange;
-    else if (status === "RESOLVED") color = colors.accentGreen;
-    else if (status === "DISMISSED") color = colors.textSecondary;
-    return {
-      fontSize: "9px",
-      fontWeight: 600,
-      color,
-      padding: "0.15rem 0.5rem",
-      border: `1px solid ${color}33`,
-      borderRadius: "3px",
-    };
-  };
-
-  const reviewBadgeStyle: React.CSSProperties = {
-    fontSize: "8px",
     fontWeight: 600,
-    color: colors.accentRed,
-    border: `1px solid ${colors.accentRed}`,
-    padding: "0.1rem 0.4rem",
-    borderRadius: "2px",
-    marginLeft: "0.5rem",
-  };
-
-  // ---- EXPANDED DETAILS ----
-  const detailsStyle: React.CSSProperties = {
-    marginTop: "0.75rem",
-    paddingTop: "0.75rem",
-    borderTop: `1px solid ${colors.border}`,
-  };
-
-  const detailRowStyle: React.CSSProperties = {
-    display: "flex",
-    justifyContent: "space-between",
-    padding: "0.25rem 0",
-    fontSize: "11px",
-    color: colors.textSecondary,
+    color: colors.accentGreen,
+    border: `1px solid ${colors.accentGreen}33`,
+    background: `${colors.accentGreen}15`,
   };
 
   // ---- STATS ----
@@ -350,40 +321,238 @@ const Incidents: React.FC = () => {
     textTransform: "uppercase",
   };
 
+  // ---- TEAM LIST ----
+  const teamListStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    gap: "0.5rem",
+  };
+
+  const memberCardStyle = (status: string, expanded: boolean): React.CSSProperties => {
+    const borderColor = getStatusColor(status);
+    return {
+      background: colors.surface,
+      border: `1px solid ${expanded ? borderColor : colors.border}`,
+      borderLeft: `4px solid ${borderColor}`,
+      padding: expanded ? "1rem" : "0.75rem 1rem",
+      cursor: "pointer",
+      transition: "all 0.2s",
+    };
+  };
+
+  const memberHeaderRowStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+  };
+
+  const memberNameStyle: React.CSSProperties = {
+    fontSize: "14px",
+    fontWeight: 600,
+    color: colors.textPrimary,
+  };
+
+  const memberInfoStyle: React.CSSProperties = {
+    fontSize: "11px",
+    color: colors.textSecondary,
+  };
+
+  const statusDotStyle = (status: string): React.CSSProperties => ({
+    width: "8px",
+    height: "8px",
+    borderRadius: "50%",
+    background: getStatusColor(status),
+    display: "inline-block",
+    marginRight: "4px",
+    boxShadow: status === "ONLINE" ? `0 0 12px ${colors.accentGreen}44` : "none",
+  });
+
+  const statusLabelStyle = (status: string): React.CSSProperties => ({
+    fontSize: "10px",
+    fontWeight: 600,
+    color: getStatusColor(status),
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.3rem",
+  });
+
+  // ---- Expanded details ----
+  const detailsStyle: React.CSSProperties = {
+    marginTop: "0.75rem",
+    paddingTop: "0.75rem",
+    borderTop: `1px solid ${colors.border}`,
+  };
+
+  const detailRowStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    padding: "0.25rem 0",
+    fontSize: "11px",
+    color: colors.textSecondary,
+  };
+
+  // ---- Tactical Map ----
+  const tacticalMapStyle: React.CSSProperties = {
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    padding: "1rem",
+    marginTop: "1.5rem",
+    position: "relative",
+    minHeight: "300px",
+  };
+
+  const mapGridStyle: React.CSSProperties = {
+    background: `radial-gradient(circle at 50% 50%, ${colors.surfaceLighter}, ${colors.surface})`,
+    border: `1px solid ${colors.border}`,
+    borderRadius: "4px",
+    height: "280px",
+    position: "relative",
+    overflow: "hidden",
+  };
+
+  // ---- MODAL ----
+  const modalOverlayStyle: React.CSSProperties = {
+    position: "fixed",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(0,0,0,0.8)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    zIndex: 2000,
+    padding: "1rem",
+  };
+
+  const modalStyle: React.CSSProperties = {
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    padding: "2rem",
+    maxWidth: "600px",
+    width: "100%",
+    maxHeight: "90vh",
+    overflowY: "auto",
+  };
+
+  const modalHeaderStyle: React.CSSProperties = {
+    display: "flex",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: "1.5rem",
+    paddingBottom: "0.75rem",
+    borderBottom: `1px solid ${colors.border}`,
+  };
+
+  const modalTitleStyle: React.CSSProperties = {
+    fontSize: "18px",
+    fontWeight: 700,
+    color: colors.textPrimary,
+  };
+
+  const searchContainerStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    background: colors.bg,
+    border: `1px solid ${colors.border}`,
+    padding: "0.3rem 0.75rem",
+    borderRadius: "4px",
+    marginBottom: "1rem",
+  };
+
+  const searchInputStyle: React.CSSProperties = {
+    background: "transparent",
+    border: "none",
+    color: colors.textPrimary,
+    fontSize: "13px",
+    padding: "0.25rem 0.5rem",
+    outline: "none",
+    width: "100%",
+    fontFamily: "inherit",
+  };
+
+  const userItemStyle = (selected: boolean): React.CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    gap: "0.75rem",
+    padding: "0.5rem 0.75rem",
+    background: selected ? `${colors.accentGreen}15` : "transparent",
+    border: `1px solid ${selected ? colors.accentGreen : colors.border}`,
+    borderRadius: "4px",
+    cursor: "pointer",
+    transition: "all 0.15s",
+    marginBottom: "0.25rem",
+  });
+
+  const modalButtonStyle = (variant: "primary" | "secondary"): React.CSSProperties => ({
+    padding: "0.5rem 1.5rem",
+    borderRadius: "4px",
+    border: variant === "secondary" ? `1px solid ${colors.border}` : "none",
+    background: variant === "primary" ? colors.accentGreen : "transparent",
+    color: variant === "secondary" ? colors.textSecondary : colors.textPrimary,
+    fontSize: "13px",
+    fontWeight: 600,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    transition: "all 0.15s",
+  });
+
+  const removeButtonStyle: React.CSSProperties = {
+    padding: "0.2rem 0.5rem",
+    borderRadius: "4px",
+    border: `1px solid ${colors.accentRed}33`,
+    background: "transparent",
+    color: colors.accentRed,
+    fontSize: "10px",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.25rem",
+  };
+
+  const createButtonStyle: React.CSSProperties = {
+    background: colors.accentGreen,
+    border: "none",
+    borderRadius: "4px",
+    padding: "0.4rem 1rem",
+    color: colors.textPrimary,
+    fontSize: "12px",
+    fontWeight: 600,
+    cursor: "pointer",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.4rem",
+    fontFamily: "inherit",
+  };
+
   // ============================================================
   // RENDER
   // ============================================================
-  const filteredIncidents = mockIncidents.filter(incident => {
-    const matchesSearch = incident.id.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                          incident.location.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesSeverity = filterSeverity === "ALL" || incident.severity === filterSeverity;
-    const matchesStatus = filterStatus === "ALL" || incident.status === filterStatus;
-    const matchesType = filterType === "ALL" || incident.type === filterType;
-    return matchesSearch && matchesSeverity && matchesStatus && matchesType;
-  });
-
-  const stats = {
-    total: mockIncidents.length,
-    active: mockIncidents.filter(i => i.status === "ACTIVE").length,
-    underReview: mockIncidents.filter(i => i.status === "UNDER_REVIEW").length,
-    resolved: mockIncidents.filter(i => i.status === "RESOLVED").length,
-    requiresReview: mockIncidents.filter(i => i.requiresReview).length,
-  };
 
   return (
     <div style={containerStyle}>
       {/* HEADER */}
       <div style={headerStyle}>
         <div style={headerLeftStyle}>
-          <div style={headerTitleStyle}>Incident Management</div>
+          <div style={headerTitleStyle}>
+            <Users size={20} style={{ display: "inline", marginRight: "8px", color: colors.accentGreen }} />
+            My Team
+          </div>
           <div style={headerSubtitleStyle}>
-            <AlertCircle size={14} style={{ display: "inline", marginRight: "6px" }} />
-            Human-in-the-loop incident review
+            Personnel coordination & live location tracking
           </div>
         </div>
-        <div style={{ fontSize: "11px", color: colors.textSecondary }}>
-          <RefreshCw size={14} style={{ display: "inline", marginRight: "4px" }} />
-          Auto-refresh: 30s
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <span style={statusBadgeStyle}>
+            <Radio size={12} color={colors.accentGreen} />
+            PERSONNEL LINK
+            <span style={{ color: colors.accentGreen, fontWeight: 700 }}>ACTIVE</span>
+          </span>
+          <button style={createButtonStyle} onClick={() => setShowCreateModal(true)}>
+            <Plus size={16} />
+            Create Team
+          </button>
         </div>
       </div>
 
@@ -391,162 +560,410 @@ const Incidents: React.FC = () => {
       <div style={statsGridStyle}>
         <div style={statCardStyle}>
           <span style={statValueStyle}>{stats.total}</span>
-          <span style={statLabelStyle}>Total Incidents</span>
+          <span style={statLabelStyle}>Total Personnel</span>
         </div>
-        <div style={{ ...statCardStyle, borderColor: colors.accentRed }}>
-          <span style={{ ...statValueStyle, color: colors.accentRed }}>{stats.active}</span>
-          <span style={statLabelStyle}>Active</span>
-        </div>
-        <div style={{ ...statCardStyle, borderColor: colors.accentOrange }}>
-          <span style={{ ...statValueStyle, color: colors.accentOrange }}>{stats.underReview}</span>
-          <span style={statLabelStyle}>Under Review</span>
+        <div style={{ ...statCardStyle, borderColor: colors.accentGreen }}>
+          <span style={{ ...statValueStyle, color: colors.accentGreen }}>{stats.online}</span>
+          <span style={statLabelStyle}>Active / Online</span>
         </div>
         <div style={{ ...statCardStyle, borderColor: colors.accentAmber }}>
-          <span style={{ ...statValueStyle, color: colors.accentAmber }}>{stats.requiresReview}</span>
-          <span style={statLabelStyle}>Requires Review</span>
+          <span style={{ ...statValueStyle, color: colors.accentAmber }}>{stats.weakSignal}</span>
+          <span style={statLabelStyle}>Weak Signal</span>
+        </div>
+        <div style={{ ...statCardStyle, borderColor: colors.accentRed }}>
+          <span style={{ ...statValueStyle, color: colors.accentRed }}>{stats.connectionLost}</span>
+          <span style={statLabelStyle}>Connection Lost</span>
         </div>
       </div>
 
-      {/* FILTERS */}
-      <div style={filterBarStyle}>
-        <div style={searchContainerStyle}>
-          <Search size={14} color={colors.textSecondary} />
-          <input
-            style={searchInputStyle}
-            placeholder="Search incidents..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
-
-        <select
-          style={filterSelectStyle}
-          value={filterSeverity}
-          onChange={(e) => setFilterSeverity(e.target.value)}
-        >
-          <option value="ALL">All Severity</option>
-          <option value="CRITICAL">Critical</option>
-          <option value="HIGH">High</option>
-          <option value="MEDIUM">Medium</option>
-          <option value="LOW">Low</option>
-        </select>
-
-        <select
-          style={filterSelectStyle}
-          value={filterStatus}
-          onChange={(e) => setFilterStatus(e.target.value)}
-        >
-          <option value="ALL">All Status</option>
-          <option value="ACTIVE">Active</option>
-          <option value="UNDER_REVIEW">Under Review</option>
-          <option value="RESOLVED">Resolved</option>
-          <option value="DISMISSED">Dismissed</option>
-        </select>
-
-        <select
-          style={filterSelectStyle}
-          value={filterType}
-          onChange={(e) => setFilterType(e.target.value)}
-        >
-          <option value="ALL">All Types</option>
-          <option value="Vehicle">Vehicle</option>
-          <option value="Person">Person</option>
-          <option value="Other">Other</option>
-        </select>
-
-        <div style={{ fontSize: "11px", color: colors.textSecondary }}>
-          <Filter size={12} style={{ display: "inline", marginRight: "4px" }} />
-          {filteredIncidents.length} results
-        </div>
+      {/* TEAM LIST */}
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+        <span style={{ fontSize: "11px", fontWeight: 600, color: colors.textSecondary, letterSpacing: "0.8px", textTransform: "uppercase" }}>
+          <Users size={14} style={{ display: "inline", marginRight: "6px" }} />
+          My Team
+        </span>
+        <span style={{ fontSize: "10px", color: colors.textSecondary }}>{teamMembers.length} Personnel</span>
       </div>
 
-      {/* INCIDENT LIST */}
-      <div style={incidentListStyle}>
-        {filteredIncidents.map((incident) => (
-          <div
-            key={incident.id}
-            style={incidentItemStyle(incident.severity, expandedIncident === incident.id)}
-            onClick={() => setExpandedIncident(expandedIncident === incident.id ? null : incident.id)}
-          >
-            <div style={incidentHeaderRowStyle}>
-              <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1 }}>
-                <span style={severityBadgeStyle(incident.severity)}>{incident.severity}</span>
-                <span style={{ fontSize: "13px", fontWeight: 600 }}>
-                  {incident.type} • {incident.id}
-                </span>
-                <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-                  {incident.location}
-                </span>
-                {incident.requiresReview && (
-                  <span style={reviewBadgeStyle}>REVIEW</span>
-                )}
+      {teamMembers.length === 0 ? (
+        <div style={{
+          textAlign: "center",
+          padding: "3rem 2rem",
+          color: colors.textSecondary,
+          background: colors.surface,
+          border: `1px solid ${colors.border}`,
+        }}>
+          <Users size={48} style={{ marginBottom: "1rem", opacity: 0.3 }} />
+          <div style={{ fontSize: "16px", fontWeight: 600, color: colors.textPrimary, marginBottom: "0.5rem" }}>
+            No Team Members
+          </div>
+          <div style={{ fontSize: "13px", marginBottom: "1.5rem" }}>
+            Create a team and add personnel to begin tracking.
+          </div>
+          <button style={createButtonStyle} onClick={() => setShowCreateModal(true)}>
+            <UserPlus size={16} />
+            Create Team
+          </button>
+        </div>
+      ) : (
+        <div style={teamListStyle}>
+          {teamMembers.map((member) => (
+            <div
+              key={member.id}
+              style={memberCardStyle(member.status, expandedMember === member.id)}
+              onClick={() => setExpandedMember(expandedMember === member.id ? null : member.id)}
+            >
+              <div style={memberHeaderRowStyle}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1 }}>
+                  <span style={statusDotStyle(member.status)} />
+                  <span style={memberNameStyle}>{member.name}</span>
+                  <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+                    {member.id}
+                  </span>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                  <span style={statusLabelStyle(member.status)}>
+                    {getStatusIcon(member.status)}
+                    {getStatusLabel(member.status)}
+                  </span>
+                  <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+                    <MapPin size={12} style={{ display: "inline", marginRight: "2px" }} />
+                    {member.latitude.toFixed(4)}°N, {member.longitude.toFixed(4)}°E
+                  </span>
+                  <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+                    {member.status === "ONLINE" ? "Live" : `${Math.round((Date.now() - member.lastUpdate) / 1000)}s ago`}
+                  </span>
+                  <button
+                    style={removeButtonStyle}
+                    onClick={(e) => { e.stopPropagation(); setRemoveConfirm(member.id); }}
+                  >
+                    <Trash2 size={12} />
+                  </button>
+                  <ChevronRight
+                    size={16}
+                    style={{
+                      transform: expandedMember === member.id ? "rotate(90deg)" : "none",
+                      transition: "transform 0.2s",
+                      color: colors.textSecondary,
+                    }}
+                  />
+                </div>
               </div>
-              <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-                <span style={{ fontSize: "14px", fontWeight: 700, color: colors.accentAmber }}>
-                  {incident.score}/100
-                </span>
-                <span style={statusBadgeStyle(incident.status)}>
-                  {incident.status.replace("_", " ")}
-                </span>
-                <ChevronRight
-                  size={16}
+
+              {expandedMember === member.id && (
+                <div style={detailsStyle}>
+                  <div style={detailRowStyle}>
+                    <span>Personnel ID</span>
+                    <span style={{ color: colors.textPrimary }}>{member.id}</span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span>Email</span>
+                    <span style={{ color: colors.textPrimary }}>{member.email}</span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span>Status</span>
+                    <span style={{ color: getStatusColor(member.status) }}>
+                      {getStatusLabel(member.status)}
+                    </span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span>Latitude</span>
+                    <span style={{ color: colors.textPrimary }}>{member.latitude.toFixed(6)}° N</span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span>Longitude</span>
+                    <span style={{ color: colors.textPrimary }}>{member.longitude.toFixed(6)}° E</span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span>Last Update</span>
+                    <span style={{ color: colors.textPrimary }}>
+                      {new Date(member.lastUpdate).toLocaleTimeString()}
+                    </span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span>Location Accuracy</span>
+                    <span style={{ color: colors.textPrimary }}>± {member.accuracy.toFixed(1)} m</span>
+                  </div>
+                  <div style={detailRowStyle}>
+                    <span>Communication</span>
+                    <span style={{ color: colors.textPrimary }}>{member.communication}</span>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* TACTICAL MAP */}
+      {teamMembers.length > 0 && (
+        <div style={tacticalMapStyle}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+            <span style={{ fontSize: "10px", fontWeight: 600, color: colors.textSecondary, letterSpacing: "0.8px", textTransform: "uppercase" }}>
+              <Crosshair size={14} style={{ display: "inline", marginRight: "6px" }} />
+              Tactical Location View
+            </span>
+            <span style={{ fontSize: "9px", color: colors.textSecondary }}>
+              {teamMembers.filter(m => m.status === "ONLINE").length} active
+            </span>
+          </div>
+          <div style={mapGridStyle}>
+            {/* Grid lines */}
+            <div style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              background: `
+                linear-gradient(to right, ${colors.border} 1px, transparent 1px),
+                linear-gradient(to bottom, ${colors.border} 1px, transparent 1px)
+              `,
+              backgroundSize: "20% 20%",
+              opacity: 0.3,
+            }} />
+
+            {/* Personnel markers */}
+            {teamMembers.map((member) => {
+              // Normalize coordinates to percentage (within a small bounding box)
+              const latMin = 28.61;
+              const latMax = 28.62;
+              const lngMin = 77.205;
+              const lngMax = 77.215;
+
+              const x = ((member.longitude - lngMin) / (lngMax - lngMin)) * 100;
+              const y = ((member.latitude - latMin) / (latMax - latMin)) * 100;
+
+              const isOnline = member.status === "ONLINE";
+              const color = getStatusColor(member.status);
+
+              return (
+                <div
+                  key={member.id}
                   style={{
-                    transform: expandedIncident === incident.id ? "rotate(90deg)" : "none",
-                    transition: "transform 0.2s",
-                    color: colors.textSecondary,
+                    position: "absolute",
+                    left: `${Math.min(95, Math.max(5, x))}%`,
+                    top: `${Math.min(95, Math.max(5, y))}%`,
+                    transform: "translate(-50%, -50%)",
+                    cursor: "pointer",
+                    zIndex: 10,
                   }}
-                />
+                  onClick={() => setExpandedMember(expandedMember === member.id ? null : member.id)}
+                >
+                  <div style={{
+                    width: "12px",
+                    height: "12px",
+                    borderRadius: "50%",
+                    background: color,
+                    boxShadow: isOnline ? `0 0 20px ${color}66` : `0 0 8px ${color}44`,
+                    border: `2px solid ${colors.bg}`,
+                    animation: isOnline ? "pulse-dot 2s infinite" : "none",
+                  }}>
+                    <div style={{
+                      position: "absolute",
+                      top: "-16px",
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      fontSize: "8px",
+                      fontWeight: 600,
+                      color: colors.textPrimary,
+                      whiteSpace: "nowrap",
+                      background: "rgba(0,0,0,0.7)",
+                      padding: "1px 4px",
+                      borderRadius: "2px",
+                    }}>
+                      {member.id}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+
+            {/* Legend */}
+            <div style={{
+              position: "absolute",
+              bottom: "8px",
+              right: "8px",
+              fontSize: "8px",
+              color: colors.textSecondary,
+              background: "rgba(0,0,0,0.7)",
+              padding: "0.25rem 0.5rem",
+              borderRadius: "2px",
+              display: "flex",
+              gap: "0.5rem",
+            }}>
+              <span style={{ color: colors.accentGreen }}>● Online</span>
+              <span style={{ color: colors.accentAmber }}>● Weak</span>
+              <span style={{ color: colors.accentRed }}>● Lost</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CONFIRM REMOVE DIALOG */}
+      {removeConfirm && (
+        <div style={modalOverlayStyle} onClick={() => setRemoveConfirm(null)}>
+          <div style={{ ...modalStyle, maxWidth: "400px" }} onClick={(e) => e.stopPropagation()}>
+            <div style={modalHeaderStyle}>
+              <div style={modalTitleStyle}>Remove Personnel</div>
+              <button
+                style={{ background: "transparent", border: "none", color: colors.textSecondary, cursor: "pointer" }}
+                onClick={() => setRemoveConfirm(null)}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <div style={{ marginBottom: "1.5rem", color: colors.textSecondary, fontSize: "13px" }}>
+              Are you sure you want to remove this team member?
+            </div>
+            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
+              <button
+                style={modalButtonStyle("secondary")}
+                onClick={() => setRemoveConfirm(null)}
+              >
+                Cancel
+              </button>
+              <button
+                style={{ ...modalButtonStyle("primary"), background: colors.accentRed }}
+                onClick={() => handleRemoveMember(removeConfirm)}
+              >
+                Remove
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* CREATE TEAM MODAL */}
+      {showCreateModal && (
+        <div style={modalOverlayStyle} onClick={() => { setShowCreateModal(false); setSelectedUsers([]); setSearchTerm(""); }}>
+          <div style={modalStyle} onClick={(e) => e.stopPropagation()}>
+            <div style={modalHeaderStyle}>
+              <div>
+                <div style={modalTitleStyle}>Create Team</div>
+                <div style={{ fontSize: "12px", color: colors.textSecondary, marginTop: "0.25rem" }}>
+                  Select personnel to add to this operational team
+                </div>
               </div>
+              <button
+                style={{ background: "transparent", border: "none", color: colors.textSecondary, cursor: "pointer" }}
+                onClick={() => { setShowCreateModal(false); setSelectedUsers([]); setSearchTerm(""); }}
+              >
+                <X size={20} />
+              </button>
             </div>
 
-            {expandedIncident === incident.id && (
-              <div style={detailsStyle}>
-                <div style={detailRowStyle}>
-                  <span>Object ID</span>
-                  <span style={{ color: colors.textPrimary }}>{incident.objectId}</span>
-                </div>
-                <div style={detailRowStyle}>
-                  <span>Threat ID</span>
-                  <span style={{ color: colors.textPrimary }}>{incident.threatId}</span>
-                </div>
-                <div style={detailRowStyle}>
-                  <span>Assigned To</span>
-                  <span style={{ color: colors.textPrimary }}>{incident.assignedTo || "Unassigned"}</span>
-                </div>
-                <div style={detailRowStyle}>
-                  <span>Created At</span>
-                  <span style={{ color: colors.textPrimary }}>{incident.createdAt}</span>
-                </div>
-                <div style={detailRowStyle}>
-                  <span>Updated At</span>
-                  <span style={{ color: colors.textPrimary }}>{incident.updatedAt}</span>
-                </div>
-                {incident.resolvedAt && (
-                  <div style={detailRowStyle}>
-                    <span>Resolved At</span>
-                    <span style={{ color: colors.textPrimary }}>{incident.resolvedAt}</span>
-                  </div>
-                )}
+            <div style={searchContainerStyle}>
+              <Search size={14} color={colors.textSecondary} />
+              <input
+                style={searchInputStyle}
+                placeholder="Search by name or email..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+            </div>
 
-                <div style={{ marginTop: "0.5rem", padding: "0.5rem", background: colors.surfaceLighter, border: `1px solid ${colors.border}` }}>
-                  <div style={{ fontSize: "10px", fontWeight: 600, color: colors.textSecondary, marginBottom: "0.25rem" }}>
-                    EVIDENCE
-                  </div>
-                  {incident.evidence.map((item, idx) => (
-                    <div key={idx} style={{ fontSize: "11px", color: colors.textPrimary, padding: "0.15rem 0" }}>
-                      • {item}
+            <div style={{ maxHeight: "300px", overflowY: "auto", marginBottom: "1rem" }}>
+              {filteredUsers.map((user) => {
+                const isSelected = selectedUsers.includes(user.id);
+                const alreadyInTeam = teamMembers.some((m) => m.id === user.id);
+                const statusColor = getStatusColor(user.status);
+
+                return (
+                  <div
+                    key={user.id}
+                    style={userItemStyle(isSelected)}
+                    onClick={() => {
+                      if (!alreadyInTeam) {
+                        toggleUserSelection(user.id);
+                      }
+                    }}
+                  >
+                    <div style={{
+                      width: "32px",
+                      height: "32px",
+                      borderRadius: "50%",
+                      background: `${statusColor}20`,
+                      border: `1px solid ${statusColor}`,
+                      display: "flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "12px",
+                      fontWeight: 600,
+                      color: colors.textPrimary,
+                      flexShrink: 0,
+                    }}>
+                      {user.name.charAt(0).toUpperCase()}
                     </div>
-                  ))}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: "13px", fontWeight: 500, color: colors.textPrimary }}>
+                        {user.name}
+                      </div>
+                      <div style={{ fontSize: "11px", color: colors.textSecondary }}>
+                        {user.email}
+                      </div>
+                    </div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                      <span style={{ fontSize: "9px", fontWeight: 600, color: statusColor }}>
+                        {user.status}
+                      </span>
+                      {alreadyInTeam ? (
+                        <span style={{ fontSize: "9px", fontWeight: 600, color: colors.accentGreen }}>
+                          ✓ Added
+                        </span>
+                      ) : isSelected ? (
+                        <Check size={16} color={colors.accentGreen} />
+                      ) : (
+                        <div style={{
+                          width: "16px",
+                          height: "16px",
+                          border: `1px solid ${colors.border}`,
+                          borderRadius: "3px",
+                        }} />
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+              {filteredUsers.length === 0 && (
+                <div style={{ textAlign: "center", padding: "1.5rem", color: colors.textSecondary, fontSize: "13px" }}>
+                  No users found
                 </div>
+              )}
+            </div>
 
-                <div style={{ marginTop: "0.5rem", fontSize: "11px", color: colors.textSecondary }}>
-                  {incident.description}
-                </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.75rem", borderTop: `1px solid ${colors.border}` }}>
+              <span style={{ fontSize: "11px", color: colors.textSecondary }}>
+                {selectedUsers.length} selected
+              </span>
+              <div style={{ display: "flex", gap: "0.75rem" }}>
+                <button
+                  style={modalButtonStyle("secondary")}
+                  onClick={() => { setShowCreateModal(false); setSelectedUsers([]); setSearchTerm(""); }}
+                >
+                  Cancel
+                </button>
+                <button
+                  style={modalButtonStyle("primary")}
+                  onClick={handleAddToTeam}
+                  disabled={selectedUsers.length === 0}
+                >
+                  <UserPlus size={16} style={{ display: "inline", marginRight: "4px" }} />
+                  Add to Team
+                </button>
               </div>
-            )}
+            </div>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
+
+      {/* KEYFRAMES */}
+      <style>{`
+        @keyframes pulse-dot {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+      `}</style>
     </div>
   );
 };
