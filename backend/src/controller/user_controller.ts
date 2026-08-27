@@ -1849,3 +1849,50 @@ export const resendEmailOTP = async (
     });
   }
 };
+
+/* =========================================================
+   GET ALL NORMAL USERS
+   Only users with role === "USER"
+========================================================= */
+
+export const getAllUsers = async (
+  req: Request,
+  res: Response
+) => {
+  try {
+    const users = await User.find({
+      role: "USER",
+    })
+      .select(
+        "_id name email role status authProvider baseId isActive emailVerified createdAt updatedAt"
+      )
+      .sort({
+        createdAt: -1,
+      });
+
+    return res.status(200).json({
+      success: true,
+      count: users.length,
+      users: users.map((user) => ({
+        id: user._id.toString(),
+        name: user.name,
+        email: user.email,
+        role: user.role,
+        status: user.status,
+        authProvider: user.authProvider,
+        baseId: user.baseId?.toString() || null,
+        isActive: user.isActive,
+        emailVerified: user.emailVerified,
+        createdAt: user.createdAt,
+        updatedAt: user.updatedAt,
+      })),
+    });
+  } catch (error) {
+    console.error("Get All Users Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to fetch users",
+    });
+  }
+};

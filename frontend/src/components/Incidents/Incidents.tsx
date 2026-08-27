@@ -7,24 +7,20 @@ import {
   MapPin,
   Radio,
   Signal,
-  Navigation,
   Crosshair,
   Wifi,
   WifiOff,
   X,
   Check,
   ChevronRight,
-  RefreshCw,
-  AlertCircle,
-  Eye,
-  User,
-  Mail,
-  Clock,
   Activity,
-  Circle,
   Plus,
   Trash2,
+  AlertCircle,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
+import { APIURL } from "../../GlobalAPIURL";
 
 // ============================================================
 // TYPES
@@ -46,68 +42,26 @@ interface RegisteredUser {
   name: string;
   email: string;
   status: "ONLINE" | "WEAK_SIGNAL" | "CONNECTION_LOST";
+  role?: string;
+  isActive?: boolean;
+  authProvider?: string;
+  baseId?: string | null;
 }
-
-// ============================================================
-// MOCK DATA
-// ============================================================
-const mockRegisteredUsers: RegisteredUser[] = [
-  { id: "P-001", name: "Arjun Sharma", email: "arjun.sharma@example.com", status: "ONLINE" },
-  { id: "P-002", name: "Rohan Verma", email: "rohan.verma@example.com", status: "CONNECTION_LOST" },
-  { id: "P-003", name: "Vikram Singh", email: "vikram.singh@example.com", status: "ONLINE" },
-  { id: "P-004", name: "Aman Patel", email: "aman.patel@example.com", status: "WEAK_SIGNAL" },
-  { id: "P-005", name: "Sneha Reddy", email: "sneha.reddy@example.com", status: "ONLINE" },
-  { id: "P-006", name: "Karan Joshi", email: "karan.joshi@example.com", status: "CONNECTION_LOST" },
-  { id: "P-007", name: "Priya Nair", email: "priya.nair@example.com", status: "ONLINE" },
-  { id: "P-008", name: "Aditya Mehta", email: "aditya.mehta@example.com", status: "WEAK_SIGNAL" },
-];
-
-const initialTeamMembers: Personnel[] = [
-  {
-    id: "P-001",
-    name: "Arjun Sharma",
-    email: "arjun.sharma@example.com",
-    status: "ONLINE",
-    latitude: 28.6139,
-    longitude: 77.2090,
-    lastUpdate: Date.now(),
-    accuracy: 4.2,
-    communication: "LOCAL RADIO LINK",
-  },
-  {
-    id: "P-003",
-    name: "Vikram Singh",
-    email: "vikram.singh@example.com",
-    status: "ONLINE",
-    latitude: 28.6145,
-    longitude: 77.2105,
-    lastUpdate: Date.now(),
-    accuracy: 3.8,
-    communication: "SATELLITE LINK",
-  },
-  {
-    id: "P-005",
-    name: "Sneha Reddy",
-    email: "sneha.reddy@example.com",
-    status: "WEAK_SIGNAL",
-    latitude: 28.6128,
-    longitude: 77.2082,
-    lastUpdate: Date.now() - 120000,
-    accuracy: 12.5,
-    communication: "WEAK RADIO",
-  },
-];
 
 // ============================================================
 // COMPONENT
 // ============================================================
 const Incidents: React.FC = () => {
-  const [teamMembers, setTeamMembers] = useState<Personnel[]>(initialTeamMembers);
+  const [teamMembers, setTeamMembers] = useState<Personnel[]>([]);
+  const [registeredUsers, setRegisteredUsers] = useState<RegisteredUser[]>([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [usersError, setUsersError] = useState<string | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [expandedMember, setExpandedMember] = useState<string | null>(null);
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
+  const [isAddingUsers, setIsAddingUsers] = useState(false);
 
   // ---- COLORS ----
   const colors = {
@@ -125,33 +79,182 @@ const Incidents: React.FC = () => {
     accentBlue: "#4A8C9E",
   };
 
+  // ---- Fetch registered users from backend ----
+  const fetchRegisteredUsers = async () => {
+    try {
+      setLoadingUsers(true);
+      setUsersError(null);
+
+      const token = sessionStorage.getItem("authToken");
+      if (!token) {
+        setUsersError("Authentication required. Please login.");
+        setLoadingUsers(false);
+        return;
+      }
+
+      const response = await fetch(`${APIURL}/get_all_users`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: Failed to fetch users`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        // Map backend users to RegisteredUser format
+        const mappedUsers: RegisteredUser[] = data.users.map((user: any) => ({
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          status: user.isActive ? "ONLINE" : "CONNECTION_LOST",
+          role: user.role,
+          isActive: user.isActive,
+          authProvider: user.authProvider,
+          baseId: user.baseId,
+        }));
+        setRegisteredUsers(mappedUsers);
+      } else {
+        setUsersError(data.message || "Failed to fetch users");
+      }
+    } catch (error: any) {
+      console.error("Error fetching users:", error);
+      setUsersError(error.message || "Failed to load users");
+    } finally {
+      setLoadingUsers(false);
+    }
+  };
+
+  // ---- Fetch users on component mount ----
+  useEffect(() => {
+    fetchRegisteredUsers();
+  }, []);
+
+  // ---- Initialize with first 3 users as team members (optional) ----
+  useEffect(() => {
+    if (registeredUsers.length > 0 && teamMembers.length === 0) {
+      // Add first 3 users as default team members
+      const defaultMembers = registeredUsers.slice(0, Math.min(3, registeredUsers.length)).map((user) => ({
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        status: user.status,
+        latitude: 28.6 + Math.random() * 0.02,
+        longitude: 77.2 + Math.random() * 0.02,
+        lastUpdate: Date.now(),
+        accuracy: 3 + Math.random() * 8,
+        communication: Math.random() > 0.5 ? "LOCAL RADIO LINK" : "SATELLITE LINK",
+      }));
+      setTeamMembers(defaultMembers);
+    }
+  }, [registeredUsers]);
+
   // ---- LIVE LOCATION UPDATES ----
   useEffect(() => {
     const interval = setInterval(() => {
       setTeamMembers((prev) =>
         prev.map((member) => {
-          if (member.status === "CONNECTION_LOST") return member;
+          // ============================================
+          // CONNECTION LOST
+          // ============================================
+          // Lost members don't move, but have a small
+          // chance to reconnect.
+          if (member.status === "CONNECTION_LOST") {
+            const reconnectChance = Math.random();
 
+            if (reconnectChance < 0.03) {
+              return {
+                ...member,
+                status: "ONLINE" as const,
+                lastUpdate: Date.now(),
+              };
+            }
+
+            return member;
+          }
+
+          // ============================================
+          // WEAK SIGNAL
+          // ============================================
           const isWeak = member.status === "WEAK_SIGNAL";
-          const shouldUpdate = !isWeak || Math.random() > 0.5;
 
-          if (!shouldUpdate) return member;
+          // Weak-signal members update less frequently
+          const shouldUpdate =
+            !isWeak || Math.random() > 0.5;
 
-          // Small random movement (simulating real GPS)
-          const latChange = (Math.random() - 0.5) * 0.00005;
-          const lngChange = (Math.random() - 0.5) * 0.00005;
+          if (!shouldUpdate) {
+            return member;
+          }
 
+          // ============================================
+          // SIMULATE GPS MOVEMENT
+          // ============================================
+          const latChange =
+            (Math.random() - 0.5) * 0.00005;
+
+          const lngChange =
+            (Math.random() - 0.5) * 0.00005;
+
+          // ============================================
+          // STATUS UPDATE
+          // ============================================
+          let newStatus: RegisteredUser["status"] =
+            member.status;
+
+          const rand = Math.random();
+
+          // --------------------------------------------
+          // ONLINE → WEAK_SIGNAL / CONNECTION_LOST
+          // --------------------------------------------
+          if (member.status === "ONLINE") {
+            // 2% chance of connection degradation
+            if (rand < 0.02) {
+              newStatus =
+                Math.random() < 0.8
+                  ? "WEAK_SIGNAL"
+                  : "CONNECTION_LOST";
+            }
+          }
+
+          // --------------------------------------------
+          // WEAK_SIGNAL → ONLINE / CONNECTION_LOST
+          // --------------------------------------------
+          else if (member.status === "WEAK_SIGNAL") {
+            // 5% chance to recover
+            if (rand < 0.05) {
+              newStatus = "ONLINE";
+            }
+
+            // Next 2% chance to completely lose connection
+            else if (rand < 0.07) {
+              newStatus = "CONNECTION_LOST";
+            }
+          }
+
+          // ============================================
+          // RETURN UPDATED MEMBER
+          // ============================================
           return {
             ...member,
-            latitude: member.latitude + latChange,
-            longitude: member.longitude + lngChange,
+            latitude:
+              member.latitude + latChange,
+            longitude:
+              member.longitude + lngChange,
             lastUpdate: Date.now(),
+            status: newStatus,
           };
         })
       );
     }, 3000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   }, []);
 
   // ---- Statistics ----
@@ -204,12 +307,12 @@ const Incidents: React.FC = () => {
 
   // ---- Modal handlers ----
   const handleAddToTeam = () => {
-    const selected = mockRegisteredUsers.filter((u) => selectedUsers.includes(u.id));
+    const selected = registeredUsers.filter((u) => selectedUsers.includes(u.id));
     const newMembers: Personnel[] = selected.map((u) => ({
       id: u.id,
       name: u.name,
       email: u.email,
-      status: u.status as "ONLINE" | "WEAK_SIGNAL" | "CONNECTION_LOST",
+      status: u.status,
       latitude: 28.6 + Math.random() * 0.02,
       longitude: 77.2 + Math.random() * 0.02,
       lastUpdate: Date.now(),
@@ -238,7 +341,7 @@ const Incidents: React.FC = () => {
   };
 
   // ---- Filter registered users ----
-  const filteredUsers = mockRegisteredUsers.filter(
+  const filteredUsers = registeredUsers.filter(
     (user) =>
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase())
@@ -526,6 +629,20 @@ const Incidents: React.FC = () => {
     fontFamily: "inherit",
   };
 
+  const refreshButtonStyle: React.CSSProperties = {
+    background: "transparent",
+    border: `1px solid ${colors.border}`,
+    borderRadius: "4px",
+    padding: "0.3rem 0.6rem",
+    color: colors.textSecondary,
+    fontSize: "11px",
+    cursor: "pointer",
+    fontFamily: "inherit",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.3rem",
+  };
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -544,6 +661,14 @@ const Incidents: React.FC = () => {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+          <button
+            style={refreshButtonStyle}
+            onClick={fetchRegisteredUsers}
+            disabled={loadingUsers}
+          >
+            <RefreshCw size={12} className={loadingUsers ? "animate-spin" : ""} />
+            Refresh
+          </button>
           <span style={statusBadgeStyle}>
             <Radio size={12} color={colors.accentGreen} />
             PERSONNEL LINK
@@ -618,7 +743,7 @@ const Incidents: React.FC = () => {
                   <span style={statusDotStyle(member.status)} />
                   <span style={memberNameStyle}>{member.name}</span>
                   <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-                    {member.id}
+                    {member.id.slice(0, 8)}
                   </span>
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
@@ -772,7 +897,7 @@ const Incidents: React.FC = () => {
                       padding: "1px 4px",
                       borderRadius: "2px",
                     }}>
-                      {member.id}
+                      {member.id.slice(0, 8)}
                     </div>
                   </div>
                 </div>
@@ -853,84 +978,131 @@ const Incidents: React.FC = () => {
               </button>
             </div>
 
-            <div style={searchContainerStyle}>
-              <Search size={14} color={colors.textSecondary} />
-              <input
-                style={searchInputStyle}
-                placeholder="Search by name or email..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
-            </div>
-
-            <div style={{ maxHeight: "300px", overflowY: "auto", marginBottom: "1rem" }}>
-              {filteredUsers.map((user) => {
-                const isSelected = selectedUsers.includes(user.id);
-                const alreadyInTeam = teamMembers.some((m) => m.id === user.id);
-                const statusColor = getStatusColor(user.status);
-
-                return (
-                  <div
-                    key={user.id}
-                    style={userItemStyle(isSelected)}
-                    onClick={() => {
-                      if (!alreadyInTeam) {
-                        toggleUserSelection(user.id);
-                      }
-                    }}
-                  >
-                    <div style={{
-                      width: "32px",
-                      height: "32px",
-                      borderRadius: "50%",
-                      background: `${statusColor}20`,
-                      border: `1px solid ${statusColor}`,
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      fontSize: "12px",
-                      fontWeight: 600,
-                      color: colors.textPrimary,
-                      flexShrink: 0,
-                    }}>
-                      {user.name.charAt(0).toUpperCase()}
-                    </div>
-                    <div style={{ flex: 1 }}>
-                      <div style={{ fontSize: "13px", fontWeight: 500, color: colors.textPrimary }}>
-                        {user.name}
-                      </div>
-                      <div style={{ fontSize: "11px", color: colors.textSecondary }}>
-                        {user.email}
-                      </div>
-                    </div>
-                    <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
-                      <span style={{ fontSize: "9px", fontWeight: 600, color: statusColor }}>
-                        {user.status}
-                      </span>
-                      {alreadyInTeam ? (
-                        <span style={{ fontSize: "9px", fontWeight: 600, color: colors.accentGreen }}>
-                          ✓ Added
-                        </span>
-                      ) : isSelected ? (
-                        <Check size={16} color={colors.accentGreen} />
-                      ) : (
-                        <div style={{
-                          width: "16px",
-                          height: "16px",
-                          border: `1px solid ${colors.border}`,
-                          borderRadius: "3px",
-                        }} />
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-              {filteredUsers.length === 0 && (
-                <div style={{ textAlign: "center", padding: "1.5rem", color: colors.textSecondary, fontSize: "13px" }}>
-                  No users found
+            {loadingUsers ? (
+              <div style={{ textAlign: "center", padding: "2rem", color: colors.textSecondary }}>
+                <Loader2 size={32} className="animate-spin" style={{ marginBottom: "0.5rem" }} />
+                <div>Loading personnel...</div>
+              </div>
+            ) : usersError ? (
+              <div style={{
+                padding: "1rem",
+                background: `${colors.accentRed}15`,
+                border: `1px solid ${colors.accentRed}`,
+                borderRadius: "4px",
+                color: colors.accentRed,
+                fontSize: "13px",
+                marginBottom: "1rem",
+                display: "flex",
+                alignItems: "center",
+                gap: "0.5rem",
+              }}>
+                <AlertCircle size={18} />
+                {usersError}
+                <button
+                  style={{
+                    marginLeft: "auto",
+                    padding: "0.2rem 0.6rem",
+                    background: colors.accentRed,
+                    border: "none",
+                    borderRadius: "3px",
+                    color: colors.textPrimary,
+                    cursor: "pointer",
+                    fontSize: "11px",
+                    fontFamily: "inherit",
+                  }}
+                  onClick={fetchRegisteredUsers}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={searchContainerStyle}>
+                  <Search size={14} color={colors.textSecondary} />
+                  <input
+                    style={searchInputStyle}
+                    placeholder="Search by name or email..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                  />
                 </div>
-              )}
-            </div>
+
+                <div style={{ maxHeight: "300px", overflowY: "auto", marginBottom: "1rem" }}>
+                  {filteredUsers.length === 0 ? (
+                    <div style={{ textAlign: "center", padding: "1.5rem", color: colors.textSecondary, fontSize: "13px" }}>
+                      {searchTerm ? "No users found matching your search" : "No registered users available"}
+                    </div>
+                  ) : (
+                    filteredUsers.map((user) => {
+                      const isSelected = selectedUsers.includes(user.id);
+                      const alreadyInTeam = teamMembers.some((m) => m.id === user.id);
+                      const statusColor = getStatusColor(user.status);
+
+                      return (
+                        <div
+                          key={user.id}
+                          style={userItemStyle(isSelected)}
+                          onClick={() => {
+                            if (!alreadyInTeam) {
+                              toggleUserSelection(user.id);
+                            }
+                          }}
+                        >
+                          <div style={{
+                            width: "32px",
+                            height: "32px",
+                            borderRadius: "50%",
+                            background: `${statusColor}20`,
+                            border: `1px solid ${statusColor}`,
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            fontSize: "12px",
+                            fontWeight: 600,
+                            color: colors.textPrimary,
+                            flexShrink: 0,
+                          }}>
+                            {user.name.charAt(0).toUpperCase()}
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: "13px", fontWeight: 500, color: colors.textPrimary }}>
+                              {user.name}
+                            </div>
+                            <div style={{ fontSize: "11px", color: colors.textSecondary }}>
+                              {user.email}
+                            </div>
+                            {user.role && (
+                              <div style={{ fontSize: "9px", color: colors.textSecondary, marginTop: "2px" }}>
+                                Role: {user.role} • {user.isActive ? "Active" : "Inactive"}
+                              </div>
+                            )}
+                          </div>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                            <span style={{ fontSize: "9px", fontWeight: 600, color: statusColor }}>
+                              {user.status}
+                            </span>
+                            {alreadyInTeam ? (
+                              <span style={{ fontSize: "9px", fontWeight: 600, color: colors.accentGreen }}>
+                                ✓ Added
+                              </span>
+                            ) : isSelected ? (
+                              <Check size={16} color={colors.accentGreen} />
+                            ) : (
+                              <div style={{
+                                width: "16px",
+                                height: "16px",
+                                border: `1px solid ${colors.border}`,
+                                borderRadius: "3px",
+                              }} />
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </>
+            )}
 
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.75rem", borderTop: `1px solid ${colors.border}` }}>
               <span style={{ fontSize: "11px", color: colors.textSecondary }}>
@@ -946,7 +1118,7 @@ const Incidents: React.FC = () => {
                 <button
                   style={modalButtonStyle("primary")}
                   onClick={handleAddToTeam}
-                  disabled={selectedUsers.length === 0}
+                  disabled={selectedUsers.length === 0 || loadingUsers}
                 >
                   <UserPlus size={16} style={{ display: "inline", marginRight: "4px" }} />
                   Add to Team
@@ -962,6 +1134,13 @@ const Incidents: React.FC = () => {
         @keyframes pulse-dot {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        .animate-spin {
+          animation: spin 1s linear infinite;
         }
       `}</style>
     </div>
