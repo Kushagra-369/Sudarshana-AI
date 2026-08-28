@@ -35,7 +35,7 @@ const ProtectedRoute: React.FC<
   useEffect(() => {
     const checkAuthentication = async () => {
       const token =
-        sessionStorage.getItem("authToken");
+        localStorage.getItem("authToken");
 
       // No token = not logged in
       if (!token) {
@@ -62,7 +62,7 @@ const ProtectedRoute: React.FC<
 
         // Backend rejected token/user
         if (!response.ok) {
-          sessionStorage.clear();
+          localStorage.clear();
 
           setAuthenticated(false);
           setChecking(false);
@@ -72,7 +72,7 @@ const ProtectedRoute: React.FC<
 
         // Invalid response
         if (!data.user) {
-          sessionStorage.clear();
+          localStorage.clear();
 
           setAuthenticated(false);
           setChecking(false);
@@ -94,7 +94,7 @@ const ProtectedRoute: React.FC<
         }
 
         // Keep latest user information
-        sessionStorage.setItem(
+        localStorage.setItem(
           "authUser",
           JSON.stringify(data.user)
         );
@@ -108,7 +108,7 @@ const ProtectedRoute: React.FC<
           error
         );
 
-        sessionStorage.clear();
+        localStorage.clear();
 
         setAuthenticated(false);
 

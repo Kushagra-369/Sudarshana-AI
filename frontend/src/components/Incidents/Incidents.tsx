@@ -61,7 +61,6 @@ const Incidents: React.FC = () => {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [expandedMember, setExpandedMember] = useState<string | null>(null);
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
-  const [isAddingUsers, setIsAddingUsers] = useState(false);
 
   // ---- COLORS ----
   const colors = {
@@ -95,7 +94,7 @@ const Incidents: React.FC = () => {
       const response = await fetch(`${APIURL}/get_all_users`, {
         method: "GET",
         headers: {
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
@@ -107,7 +106,6 @@ const Incidents: React.FC = () => {
       const data = await response.json();
 
       if (data.success) {
-        // Map backend users to RegisteredUser format
         const mappedUsers: RegisteredUser[] = data.users.map((user: any) => ({
           id: user.id,
           name: user.name,
@@ -135,10 +133,9 @@ const Incidents: React.FC = () => {
     fetchRegisteredUsers();
   }, []);
 
-  // ---- Initialize with first 3 users as team members (optional) ----
+  // ---- Initialize with first 3 users as team members ----
   useEffect(() => {
     if (registeredUsers.length > 0 && teamMembers.length === 0) {
-      // Add first 3 users as default team members
       const defaultMembers = registeredUsers.slice(0, Math.min(3, registeredUsers.length)).map((user) => ({
         id: user.id,
         name: user.name,
@@ -159,92 +156,40 @@ const Incidents: React.FC = () => {
     const interval = setInterval(() => {
       setTeamMembers((prev) =>
         prev.map((member) => {
-          // ============================================
-          // CONNECTION LOST
-          // ============================================
-          // Lost members don't move, but have a small
-          // chance to reconnect.
           if (member.status === "CONNECTION_LOST") {
             const reconnectChance = Math.random();
-
             if (reconnectChance < 0.03) {
-              return {
-                ...member,
-                status: "ONLINE" as const,
-                lastUpdate: Date.now(),
-              };
+              return { ...member, status: "ONLINE" as const, lastUpdate: Date.now() };
             }
-
             return member;
           }
 
-          // ============================================
-          // WEAK SIGNAL
-          // ============================================
           const isWeak = member.status === "WEAK_SIGNAL";
+          const shouldUpdate = !isWeak || Math.random() > 0.5;
+          if (!shouldUpdate) return member;
 
-          // Weak-signal members update less frequently
-          const shouldUpdate =
-            !isWeak || Math.random() > 0.5;
+          const latChange = (Math.random() - 0.5) * 0.00005;
+          const lngChange = (Math.random() - 0.5) * 0.00005;
 
-          if (!shouldUpdate) {
-            return member;
-          }
-
-          // ============================================
-          // SIMULATE GPS MOVEMENT
-          // ============================================
-          const latChange =
-            (Math.random() - 0.5) * 0.00005;
-
-          const lngChange =
-            (Math.random() - 0.5) * 0.00005;
-
-          // ============================================
-          // STATUS UPDATE
-          // ============================================
-          let newStatus: RegisteredUser["status"] =
-            member.status;
-
+          let newStatus: RegisteredUser["status"] = member.status;
           const rand = Math.random();
 
-          // --------------------------------------------
-          // ONLINE → WEAK_SIGNAL / CONNECTION_LOST
-          // --------------------------------------------
           if (member.status === "ONLINE") {
-            // 2% chance of connection degradation
             if (rand < 0.02) {
-              newStatus =
-                Math.random() < 0.8
-                  ? "WEAK_SIGNAL"
-                  : "CONNECTION_LOST";
+              newStatus = Math.random() < 0.8 ? "WEAK_SIGNAL" : "CONNECTION_LOST";
             }
-          }
-
-          // --------------------------------------------
-          // WEAK_SIGNAL → ONLINE / CONNECTION_LOST
-          // --------------------------------------------
-          else if (member.status === "WEAK_SIGNAL") {
-            // 5% chance to recover
+          } else if (member.status === "WEAK_SIGNAL") {
             if (rand < 0.05) {
               newStatus = "ONLINE";
-            }
-
-            // Next 2% chance to completely lose connection
-            else if (rand < 0.07) {
+            } else if (rand < 0.07) {
               newStatus = "CONNECTION_LOST";
             }
           }
 
-          // ============================================
-          // RETURN UPDATED MEMBER
-          // ============================================
           return {
             ...member,
-            latitude:
-              member.latitude + latChange,
-            longitude:
-              member.longitude + lngChange,
+            latitude: member.latitude + latChange,
+            longitude: member.longitude + lngChange,
             lastUpdate: Date.now(),
             status: newStatus,
           };
@@ -363,6 +308,8 @@ const Incidents: React.FC = () => {
     marginBottom: "1.5rem",
     borderBottom: `1px solid ${colors.border}`,
     paddingBottom: "0.75rem",
+    flexWrap: "wrap",
+    gap: "0.5rem",
   };
 
   const headerLeftStyle: React.CSSProperties = {
@@ -447,6 +394,8 @@ const Incidents: React.FC = () => {
     display: "flex",
     justifyContent: "space-between",
     alignItems: "center",
+    flexWrap: "wrap",
+    gap: "0.25rem",
   };
 
   const memberNameStyle: React.CSSProperties = {
@@ -492,6 +441,8 @@ const Incidents: React.FC = () => {
     padding: "0.25rem 0",
     fontSize: "11px",
     color: colors.textSecondary,
+    flexWrap: "wrap",
+    gap: "0.25rem",
   };
 
   // ---- Tactical Map ----
@@ -545,6 +496,8 @@ const Incidents: React.FC = () => {
     marginBottom: "1.5rem",
     paddingBottom: "0.75rem",
     borderBottom: `1px solid ${colors.border}`,
+    flexWrap: "wrap",
+    gap: "0.5rem",
   };
 
   const modalTitleStyle: React.CSSProperties = {
@@ -585,6 +538,7 @@ const Incidents: React.FC = () => {
     cursor: "pointer",
     transition: "all 0.15s",
     marginBottom: "0.25rem",
+    flexWrap: "wrap",
   });
 
   const modalButtonStyle = (variant: "primary" | "secondary"): React.CSSProperties => ({
@@ -660,12 +614,8 @@ const Incidents: React.FC = () => {
             Personnel coordination & live location tracking
           </div>
         </div>
-        <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
-          <button
-            style={refreshButtonStyle}
-            onClick={fetchRegisteredUsers}
-            disabled={loadingUsers}
-          >
+        <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+          <button style={refreshButtonStyle} onClick={fetchRegisteredUsers} disabled={loadingUsers}>
             <RefreshCw size={12} className={loadingUsers ? "animate-spin" : ""} />
             Refresh
           </button>
@@ -702,7 +652,7 @@ const Incidents: React.FC = () => {
       </div>
 
       {/* TEAM LIST */}
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.75rem", flexWrap: "wrap", gap: "0.25rem" }}>
         <span style={{ fontSize: "11px", fontWeight: 600, color: colors.textSecondary, letterSpacing: "0.8px", textTransform: "uppercase" }}>
           <Users size={14} style={{ display: "inline", marginRight: "6px" }} />
           My Team
@@ -739,14 +689,14 @@ const Incidents: React.FC = () => {
               onClick={() => setExpandedMember(expandedMember === member.id ? null : member.id)}
             >
               <div style={memberHeaderRowStyle}>
-                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1 }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flex: 1, flexWrap: "wrap" }}>
                   <span style={statusDotStyle(member.status)} />
                   <span style={memberNameStyle}>{member.name}</span>
                   <span style={{ fontSize: "10px", color: colors.textSecondary }}>
                     {member.id.slice(0, 8)}
                   </span>
                 </div>
-                <div style={{ display: "flex", alignItems: "center", gap: "1rem" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
                   <span style={statusLabelStyle(member.status)}>
                     {getStatusIcon(member.status)}
                     {getStatusLabel(member.status)}
@@ -823,7 +773,7 @@ const Incidents: React.FC = () => {
       {/* TACTICAL MAP */}
       {teamMembers.length > 0 && (
         <div style={tacticalMapStyle}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem" }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "0.5rem", flexWrap: "wrap", gap: "0.25rem" }}>
             <span style={{ fontSize: "10px", fontWeight: 600, color: colors.textSecondary, letterSpacing: "0.8px", textTransform: "uppercase" }}>
               <Crosshair size={14} style={{ display: "inline", marginRight: "6px" }} />
               Tactical Location View
@@ -833,7 +783,6 @@ const Incidents: React.FC = () => {
             </span>
           </div>
           <div style={mapGridStyle}>
-            {/* Grid lines */}
             <div style={{
               position: "absolute",
               top: 0,
@@ -848,9 +797,7 @@ const Incidents: React.FC = () => {
               opacity: 0.3,
             }} />
 
-            {/* Personnel markers */}
             {teamMembers.map((member) => {
-              // Normalize coordinates to percentage (within a small bounding box)
               const latMin = 28.61;
               const latMax = 28.62;
               const lngMin = 77.205;
@@ -904,7 +851,6 @@ const Incidents: React.FC = () => {
               );
             })}
 
-            {/* Legend */}
             <div style={{
               position: "absolute",
               bottom: "8px",
@@ -941,11 +887,8 @@ const Incidents: React.FC = () => {
             <div style={{ marginBottom: "1.5rem", color: colors.textSecondary, fontSize: "13px" }}>
               Are you sure you want to remove this team member?
             </div>
-            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end" }}>
-              <button
-                style={modalButtonStyle("secondary")}
-                onClick={() => setRemoveConfirm(null)}
-              >
+            <div style={{ display: "flex", gap: "0.75rem", justifyContent: "flex-end", flexWrap: "wrap" }}>
+              <button style={modalButtonStyle("secondary")} onClick={() => setRemoveConfirm(null)}>
                 Cancel
               </button>
               <button
@@ -995,6 +938,7 @@ const Incidents: React.FC = () => {
                 display: "flex",
                 alignItems: "center",
                 gap: "0.5rem",
+                flexWrap: "wrap",
               }}>
                 <AlertCircle size={18} />
                 {usersError}
@@ -1064,7 +1008,7 @@ const Incidents: React.FC = () => {
                           }}>
                             {user.name.charAt(0).toUpperCase()}
                           </div>
-                          <div style={{ flex: 1 }}>
+                          <div style={{ flex: 1, minWidth: "120px" }}>
                             <div style={{ fontSize: "13px", fontWeight: 500, color: colors.textPrimary }}>
                               {user.name}
                             </div>
@@ -1077,7 +1021,7 @@ const Incidents: React.FC = () => {
                               </div>
                             )}
                           </div>
-                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+                          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", flexWrap: "wrap" }}>
                             <span style={{ fontSize: "9px", fontWeight: 600, color: statusColor }}>
                               {user.status}
                             </span>
@@ -1104,11 +1048,11 @@ const Incidents: React.FC = () => {
               </>
             )}
 
-            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.75rem", borderTop: `1px solid ${colors.border}` }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", paddingTop: "0.75rem", borderTop: `1px solid ${colors.border}`, flexWrap: "wrap", gap: "0.5rem" }}>
               <span style={{ fontSize: "11px", color: colors.textSecondary }}>
                 {selectedUsers.length} selected
               </span>
-              <div style={{ display: "flex", gap: "0.75rem" }}>
+              <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
                 <button
                   style={modalButtonStyle("secondary")}
                   onClick={() => { setShowCreateModal(false); setSelectedUsers([]); setSearchTerm(""); }}
@@ -1141,6 +1085,16 @@ const Incidents: React.FC = () => {
         }
         .animate-spin {
           animation: spin 1s linear infinite;
+        }
+        @media (max-width: 768px) {
+          .incidents-stats {
+            grid-template-columns: 1fr 1fr !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .incidents-stats {
+            grid-template-columns: 1fr !important;
+          }
         }
       `}</style>
     </div>

@@ -140,7 +140,6 @@ const Surveillance: React.FC = () => {
   });
 
   const videoRefs = useRef<Record<string, HTMLVideoElement | null>>({});
-  const feedRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   // ---- Per-camera detection control ----
   const startCameraDetection = async (camId: string) => {
@@ -305,7 +304,6 @@ const Surveillance: React.FC = () => {
       interval = setInterval(fetchLiveDetection, 500);
     }
 
-    // Watch for changes in camStates to start/stop polling
     const stateCheckInterval = setInterval(() => {
       if (anyRunning() && !interval) {
         interval = setInterval(fetchLiveDetection, 500);
@@ -335,8 +333,8 @@ const Surveillance: React.FC = () => {
         obj.category === "Vehicle"
           ? "Vehicle"
           : obj.category === "Person"
-            ? "Person"
-            : "Other",
+          ? "Person"
+          : "Other",
       className: obj.class,
       confidence: Math.round(obj.confidence * 100),
       trackId: `${selectedCamera}-${index + 1}`,
@@ -423,6 +421,8 @@ const Surveillance: React.FC = () => {
     marginBottom: "1.5rem",
     borderBottom: `1px solid ${colors.border}`,
     paddingBottom: "0.75rem",
+    flexWrap: "wrap",
+    gap: "0.5rem",
   };
 
   const headerLeftStyle: React.CSSProperties = {
@@ -438,6 +438,7 @@ const Surveillance: React.FC = () => {
     display: "flex",
     alignItems: "center",
     gap: "0.5rem",
+    flexWrap: "wrap",
   };
 
   const headerSubtitleStyle: React.CSSProperties = {
@@ -450,6 +451,7 @@ const Surveillance: React.FC = () => {
     display: "flex",
     alignItems: "center",
     gap: "1rem",
+    flexWrap: "wrap",
   };
 
   const cameraSelectorStyle: React.CSSProperties = {
@@ -530,6 +532,8 @@ const Surveillance: React.FC = () => {
     paddingBottom: "0.5rem",
     borderBottom: `1px solid ${colors.border}`,
     marginBottom: "0.75rem",
+    flexWrap: "wrap",
+    gap: "0.25rem",
   };
 
   const panelTitleStyle: React.CSSProperties = {
@@ -593,6 +597,8 @@ const Surveillance: React.FC = () => {
     color: colors.textSecondary,
     letterSpacing: "0.5px",
     pointerEvents: "auto",
+    flexWrap: "wrap",
+    gap: "0.25rem",
   };
 
   const feedRecStyle: React.CSSProperties = {
@@ -616,6 +622,8 @@ const Surveillance: React.FC = () => {
     fontSize: "9px",
     color: colors.textSecondary,
     pointerEvents: "auto",
+    flexWrap: "wrap",
+    gap: "0.25rem",
   };
 
   const feedControlsStyle: React.CSSProperties = {
@@ -623,6 +631,7 @@ const Surveillance: React.FC = () => {
     alignItems: "center",
     gap: "0.75rem",
     pointerEvents: "auto",
+    flexWrap: "wrap",
   };
 
   const controlButtonStyle: React.CSSProperties = {
@@ -841,8 +850,8 @@ const Surveillance: React.FC = () => {
               color: loadingLive
                 ? colors.accentAmber
                 : liveError
-                  ? colors.accentRed
-                  : colors.accentGreen,
+                ? colors.accentRed
+                : colors.accentGreen,
               marginLeft: "0.75rem",
               fontWeight: 600,
             }}
@@ -851,8 +860,8 @@ const Surveillance: React.FC = () => {
             {loadingLive
               ? "CONNECTING"
               : liveError
-                ? "OFFLINE"
-                : "LIVE DATA"}
+              ? "OFFLINE"
+              : "LIVE DATA"}
           </span>
           <div style={cameraSelectorStyle}>
             <Radio
@@ -861,14 +870,14 @@ const Surveillance: React.FC = () => {
                 selectedCam?.status === "ACTIVE"
                   ? colors.accentGreen
                   : selectedCam?.status === "RECORDING"
-                    ? colors.accentAmber
-                    : colors.accentRed
+                  ? colors.accentAmber
+                  : colors.accentRed
               }
             />
             <span>{selectedCamera}</span>
             <ChevronDown size={14} />
           </div>
-          <div style={{ display: "flex", gap: "0.25rem" }}>
+          <div style={{ display: "flex", gap: "0.25rem", flexWrap: "wrap" }}>
             <button
               style={viewToggleStyle(viewMode === "grid")}
               onClick={() => setViewMode("grid")}
@@ -987,7 +996,7 @@ const Surveillance: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <div style={{ display: "flex", gap: "1rem" }}>
+                    <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap" }}>
                       <span>SECTOR {cam.sector}</span>
                       <span>|</span>
                       <span>{cam.id}</span>
@@ -996,14 +1005,14 @@ const Surveillance: React.FC = () => {
                         {cam.status === "ACTIVE"
                           ? "LIVE"
                           : cam.status === "RECORDING"
-                            ? "RECORDING"
-                            : "OFFLINE"}
+                          ? "RECORDING"
+                          : "OFFLINE"}
                       </span>
                     </div>
                   </div>
 
                   <div style={feedBottomBarStyle}>
-                    <div style={{ display: "flex", gap: "0.75rem" }}>
+                    <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap" }}>
                       <span>OBJECTS: {objectCount}</span>
                       {isDetectionActive && liveCam?.seconds_since_detection !== undefined && (
                         <span>
@@ -1104,10 +1113,10 @@ const Surveillance: React.FC = () => {
                           obj.threat === "CRITICAL"
                             ? colors.accentRed
                             : obj.threat === "HIGH"
-                              ? colors.accentOrange
-                              : obj.threat === "MEDIUM"
-                                ? colors.accentAmber
-                                : colors.accentGreen,
+                            ? colors.accentOrange
+                            : obj.threat === "MEDIUM"
+                            ? colors.accentAmber
+                            : colors.accentGreen,
                       }}
                     >
                       {obj.confidence}%
@@ -1148,6 +1157,7 @@ const Surveillance: React.FC = () => {
                   marginTop: "0.25rem",
                   fontSize: "9px",
                   color: colors.textSecondary,
+                  flexWrap: "wrap",
                 }}
               >
                 <span>
@@ -1206,6 +1216,8 @@ const Surveillance: React.FC = () => {
                       justifyContent: "space-between",
                       alignItems: "center",
                       marginBottom: "0.25rem",
+                      flexWrap: "wrap",
+                      gap: "0.25rem",
                     }}
                   >
                     <span
@@ -1224,12 +1236,12 @@ const Surveillance: React.FC = () => {
                           color: hasObjects
                             ? colors.accentRed
                             : !isDetectionRunning
-                              ? colors.textSecondary
-                              : cam.status === "ACTIVE"
-                                ? colors.accentGreen
-                                : cam.status === "RECORDING"
-                                  ? colors.accentAmber
-                                  : colors.accentRed,
+                            ? colors.textSecondary
+                            : cam.status === "ACTIVE"
+                            ? colors.accentGreen
+                            : cam.status === "RECORDING"
+                            ? colors.accentAmber
+                            : colors.accentRed,
                         }}
                       >
                         {hasObjects ? "DETECTING" : !isDetectionRunning ? "PAUSED" : cam.status}
@@ -1242,8 +1254,8 @@ const Surveillance: React.FC = () => {
                           background: hasObjects
                             ? colors.accentRed
                             : !isDetectionRunning
-                              ? colors.textSecondary
-                              : colors.accentGreen,
+                            ? colors.textSecondary
+                            : colors.accentGreen,
                           display: "inline-block",
                           boxShadow: hasObjects ? `0 0 12px ${colors.accentRed}` : "none",
                         }}
@@ -1295,6 +1307,41 @@ const Surveillance: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* RESPONSIVE STYLES */}
+      <style>{`
+        @media (max-width: 1024px) {
+          .surveillance-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .surveillance-stats {
+            grid-template-columns: 1fr 1fr !important;
+          }
+        }
+        @media (max-width: 768px) {
+          .surveillance-main-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .surveillance-object-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .surveillance-camera-grid {
+            grid-template-columns: 1fr 1fr !important;
+          }
+        }
+        @media (max-width: 480px) {
+          .surveillance-stats {
+            grid-template-columns: 1fr !important;
+          }
+          .surveillance-camera-grid {
+            grid-template-columns: 1fr !important;
+          }
+          .surveillance-header {
+            flex-direction: column !important;
+            align-items: flex-start !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

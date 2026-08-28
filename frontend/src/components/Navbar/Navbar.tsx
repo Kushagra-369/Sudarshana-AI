@@ -8,7 +8,8 @@ import {
   Settings,
   Activity,
   LogOut,
-
+  Menu,
+  X,
 } from "lucide-react";
 
 // ====================================================================
@@ -69,6 +70,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const [showNotifications, setShowNotifications] = useState(false);
   const [showOperatorMenu, setShowOperatorMenu] = useState(false);
   const [actualOperatorName, setActualOperatorName] = useState(operatorName);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const operatorRef = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -200,6 +202,9 @@ const Navbar: React.FC<NavbarProps> = ({
     fontFamily: '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
     color: colors.textPrimary,
     userSelect: "none",
+    position: "sticky",
+    top: 0,
+    zIndex: 1000,
   };
 
   const headerStyle: React.CSSProperties = {
@@ -207,14 +212,14 @@ const Navbar: React.FC<NavbarProps> = ({
     alignItems: "center",
     justifyContent: "space-between",
     height: "48px",
-    padding: "0 1.5rem",
+    padding: "0 1rem",
     borderBottom: `1px solid ${colors.border}`,
   };
 
   const leftStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
-    gap: "1rem",
+    gap: "0.75rem",
   };
 
   const brandIconStyle: React.CSSProperties = {
@@ -230,6 +235,7 @@ const Navbar: React.FC<NavbarProps> = ({
     color: colors.textPrimary,
     letterSpacing: "0.5px",
     border: `1px solid ${colors.borderLight}`,
+    flexShrink: 0,
   };
 
   const brandTextStyle: React.CSSProperties = {
@@ -308,7 +314,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const rightStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
-    gap: "1rem",
+    gap: "0.75rem",
   };
 
   const notifWrapperStyle: React.CSSProperties = {
@@ -429,7 +435,7 @@ const Navbar: React.FC<NavbarProps> = ({
     display: "flex",
     alignItems: "center",
     height: "34px",
-    padding: "0 1.5rem",
+    padding: "0 1rem",
     gap: "0.25rem",
     overflowX: "auto",
     whiteSpace: "nowrap",
@@ -440,7 +446,7 @@ const Navbar: React.FC<NavbarProps> = ({
   const navLinkStyle = (active: boolean): React.CSSProperties => ({
     background: active ? colors.activeBg : "transparent",
     border: "none",
-    padding: "0.25rem 1rem",
+    padding: "0.25rem 0.75rem",
     fontSize: "10px",
     fontWeight: 500,
     color: active ? colors.textPrimary : colors.textSecondary,
@@ -456,15 +462,78 @@ const Navbar: React.FC<NavbarProps> = ({
     }),
   });
 
+  // ---- Mobile Menu ----
+  const mobileMenuButtonStyle: React.CSSProperties = {
+    display: "none",
+    background: "transparent",
+    border: "none",
+    color: colors.textPrimary,
+    cursor: "pointer",
+    padding: "4px",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  const mobileMenuOverlayStyle: React.CSSProperties = {
+    position: "fixed",
+    top: "48px",
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: "rgba(8, 13, 12, 0.98)",
+    zIndex: 999,
+    padding: "1.5rem 1rem",
+    overflowY: "auto",
+    animation: "slideDown 0.25s ease",
+  };
+
+  const mobileNavLinkStyle = (active: boolean): React.CSSProperties => ({
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    width: "100%",
+    padding: "0.75rem 1rem",
+    fontSize: "14px",
+    fontWeight: 500,
+    color: active ? colors.textPrimary : colors.textSecondary,
+    background: active ? colors.activeBg : "transparent",
+    border: "none",
+    borderLeft: active ? `3px solid ${colors.accentGreen}` : "none",
+    cursor: "pointer",
+    textAlign: "left",
+    fontFamily: "inherit",
+    borderRadius: "4px",
+    marginBottom: "0.25rem",
+    transition: "all 0.15s",
+  });
+
+  const mobileStatusSectionStyle: React.CSSProperties = {
+    padding: "0 0 1rem 0",
+    borderBottom: `1px solid ${colors.border}`,
+    marginBottom: "1rem",
+  };
+
+  const mobileStatusRowStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    padding: "0.3rem 0",
+    fontSize: "12px",
+  };
+
   useEffect(() => {
     const style = document.createElement("style");
 
     style.textContent = `
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; }
-      50% { opacity: 0.4; }
-    }
-  `;
+      @keyframes pulse-dot {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.4; }
+      }
+      @keyframes slideDown {
+        from { opacity: 0; transform: translateY(-10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    `;
 
     document.head.appendChild(style);
 
@@ -472,6 +541,7 @@ const Navbar: React.FC<NavbarProps> = ({
       document.head.removeChild(style);
     };
   }, []);
+
   return (
     <div style={containerStyle}>
       {/* HEADER ROW */}
@@ -485,8 +555,8 @@ const Navbar: React.FC<NavbarProps> = ({
           </div>
         </div>
 
-        {/* CENTER */}
-        <div style={centerStyle}>
+        {/* CENTER - Hidden on tablet/mobile */}
+        <div style={{ ...centerStyle, display: "none" }} className="desktop-center">
           <div style={statusGroupStyle}>
             <span style={dotStyle(isOperational)} />
             <span style={statusLabelStyle}>STATUS</span>
@@ -586,11 +656,20 @@ const Navbar: React.FC<NavbarProps> = ({
               </div>
             )}
           </div>
+
+          {/* Mobile Menu Button */}
+          <button
+            style={mobileMenuButtonStyle}
+            className="mobile-menu-button"
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+          >
+            {isMobileMenuOpen ? <X size={20} /> : <Menu size={20} />}
+          </button>
         </div>
       </div>
 
-      {/* NAVIGATION STRIP */}
-      <div style={navStripStyle}>
+      {/* NAVIGATION STRIP - Desktop only */}
+      <div style={navStripStyle} className="desktop-nav">
         {navItems.map((item) => (
           <button
             key={item.id}
@@ -604,6 +683,103 @@ const Navbar: React.FC<NavbarProps> = ({
           </button>
         ))}
       </div>
+
+      {/* MOBILE MENU OVERLAY */}
+      {isMobileMenuOpen && (
+        <div style={mobileMenuOverlayStyle}>
+          {/* Mobile Status */}
+          <div style={mobileStatusSectionStyle}>
+            <div style={mobileStatusRowStyle}>
+              <span style={dotStyle(isOperational)} />
+              <span style={statusLabelStyle}>STATUS</span>
+              <span style={{ ...statusValueStyle, fontSize: "12px" }}>
+                {isOperational ? "OPERATIONAL" : "DEGRADED"}
+              </span>
+            </div>
+            <div style={mobileStatusRowStyle}>
+              <span style={{ ...dotStyle(true, colors.accentGold) }} />
+              <span style={statusLabelStyle}>PROCESSING</span>
+              <span style={{ ...statusValueStyle, color: colors.accentGold, fontSize: "12px" }}>
+                LOCAL
+              </span>
+            </div>
+            <div style={{ ...timeStyle, fontSize: "12px", color: colors.textSecondary }}>
+              {dateStr} · {timeStr}
+            </div>
+          </div>
+
+          {/* Mobile Nav Links */}
+          {navItems.map((item) => (
+            <button
+              key={item.id}
+              style={mobileNavLinkStyle(currentPage === item.id)}
+              onClick={() => {
+                navigate(`/${item.id}`);
+                onNavigate?.(item.id);
+                setIsMobileMenuOpen(false);
+              }}
+            >
+              <span>{item.label}</span>
+              {currentPage === item.id && (
+                <span style={{
+                  fontSize: "8px",
+                  color: colors.accentGreen,
+                  background: `${colors.accentGreen}20`,
+                  padding: "2px 8px",
+                  borderRadius: "10px",
+                }}>
+                  ACTIVE
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* RESPONSIVE CSS */}
+      <style>{`
+        /* Hide center section on tablet and below */
+        @media (max-width: 1024px) {
+          .desktop-center {
+            display: none !important;
+          }
+        }
+
+        /* Hide desktop nav on mobile, show mobile menu button */
+        @media (max-width: 768px) {
+          .desktop-nav {
+            display: none !important;
+          }
+          
+          .mobile-menu-button {
+            display: flex !important;
+          }
+        }
+
+        /* Show desktop nav, hide mobile menu button on larger screens */
+        @media (min-width: 769px) {
+          .desktop-nav {
+            display: flex !important;
+          }
+          
+          .mobile-menu-button {
+            display: none !important;
+          }
+        }
+
+        /* Tablet: Show desktop nav but with smaller spacing */
+        @media (min-width: 769px) and (max-width: 1024px) {
+          .desktop-nav {
+            gap: 0.1rem !important;
+            padding: 0 0.5rem !important;
+          }
+          .desktop-nav button {
+            font-size: 9px !important;
+            padding: 0.25rem 0.5rem !important;
+            letter-spacing: 0.5px !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

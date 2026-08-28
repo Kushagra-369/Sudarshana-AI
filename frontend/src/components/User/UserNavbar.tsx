@@ -1,5 +1,5 @@
 // components/UserNavbar.tsx
-import React, { useEffect, useState, } from "react";
+import React, { useEffect, useState } from "react";
 import { Menu, X, Home, Bell, Shield, Info, Bot } from "lucide-react";
 import { APIURL } from "../../GlobalAPIURL";
 
@@ -17,38 +17,26 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
   userName = "Guest",
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-  const [currentUserName, setCurrentUserName] =
-    useState(userName);
+  const [currentUserName, setCurrentUserName] = useState(userName);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
-        const token =
-          sessionStorage.getItem("authToken");
+        const token = sessionStorage.getItem("authToken");
+        if (!token) return;
 
-        if (!token) {
-          return;
-        }
-
-        const response = await fetch(
-          `${APIURL}/me`,
-          {
-            method: "GET",
-            headers: {
-              Authorization: `Bearer ${token}`,
-              "Content-Type": "application/json",
-            },
-          }
-        );
+        const response = await fetch(`${APIURL}/me`, {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        });
 
         const data = await response.json();
 
         if (!response.ok) {
-          console.error(
-            "Failed to fetch current user:",
-            data.message
-          );
+          console.error("Failed to fetch current user:", data.message);
           return;
         }
 
@@ -56,10 +44,7 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
           setCurrentUserName(data.user.name);
         }
       } catch (error) {
-        console.error(
-          "Current user fetch error:",
-          error
-        );
+        console.error("Current user fetch error:", error);
       }
     };
 
@@ -96,17 +81,19 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
   const innerContainerStyle: React.CSSProperties = {
     maxWidth: "1200px",
     margin: "0 auto",
-    padding: "0 1.5rem",
+    padding: "0 1rem",
     display: "flex",
     alignItems: "center",
     justifyContent: "space-between",
     height: "64px",
+    gap: "0.5rem",
   };
 
   const leftSectionStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
-    gap: "1rem",
+    gap: "0.75rem",
+    flexShrink: 0,
   };
 
   const brandIconStyle: React.CSSProperties = {
@@ -122,6 +109,7 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
     color: colors.textPrimary,
     letterSpacing: "0.5px",
     border: `1px solid ${colors.border}`,
+    flexShrink: 0,
   };
 
   const brandTextStyle: React.CSSProperties = {
@@ -145,6 +133,7 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
     textTransform: "uppercase",
   };
 
+  // Desktop Navigation - Hidden on mobile
   const navContainerStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
@@ -154,7 +143,7 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
   const navLinkStyle = (active: boolean): React.CSSProperties => ({
     background: active ? colors.surface : "transparent",
     border: "none",
-    padding: "0.4rem 1rem",
+    padding: "0.4rem 0.75rem",
     fontSize: "13px",
     fontWeight: active ? 600 : 500,
     color: active ? colors.textPrimary : colors.textSecondary,
@@ -176,7 +165,8 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
   const rightSectionStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
-    gap: "0.75rem",
+    gap: "0.5rem",
+    flexShrink: 0,
   };
 
   const userWrapperStyle: React.CSSProperties = {
@@ -201,6 +191,7 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
     fontSize: "12px",
     fontWeight: 600,
     color: colors.textPrimary,
+    flexShrink: 0,
   };
 
   const userNameStyle: React.CSSProperties = {
@@ -209,13 +200,16 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
     color: colors.textSecondary,
   };
 
+  // Mobile Menu Button - Visible only on mobile
   const mobileMenuButtonStyle: React.CSSProperties = {
-    display: "none",
+    display: "flex",
     background: "transparent",
     border: "none",
     color: colors.textPrimary,
     cursor: "pointer",
     padding: "4px",
+    alignItems: "center",
+    justifyContent: "center",
   };
 
   const mobileMenuStyle: React.CSSProperties = {
@@ -223,7 +217,7 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
     flexDirection: "column",
     background: colors.bg,
     borderTop: `1px solid ${colors.border}`,
-    padding: "1rem 1.5rem",
+    padding: "1rem 1rem",
     gap: "0.5rem",
   };
 
@@ -251,7 +245,7 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
   return (
     <div style={containerStyle}>
       <div style={innerContainerStyle}>
-        {/* Left Section */}
+        {/* Left Section - Brand */}
         <div style={leftSectionStyle}>
           <div style={brandIconStyle}>SA</div>
           <div style={brandTextStyle}>
@@ -260,8 +254,8 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
           </div>
         </div>
 
-        {/* Center Navigation - Desktop */}
-        <div style={navContainerStyle}>
+        {/* Center Navigation - Desktop Only */}
+        <div style={navContainerStyle} className="desktop-nav">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -288,9 +282,10 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
             </span>
           </div>
 
-          {/* Mobile Menu Button */}
+          {/* Mobile Menu Button - Visible on mobile */}
           <button
             style={mobileMenuButtonStyle}
+            className="mobile-menu-btn"
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           >
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
@@ -298,9 +293,9 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
         </div>
       </div>
 
-      {/* Mobile Menu */}
+      {/* Mobile Menu - Visible when open */}
       {isMobileMenuOpen && (
-        <div style={mobileMenuStyle}>
+        <div style={mobileMenuStyle} className="mobile-menu">
           {navItems.map((item) => {
             const Icon = item.icon;
             return (
@@ -319,6 +314,98 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
           })}
         </div>
       )}
+
+      {/* Responsive CSS */}
+      <style>{`
+        /* Hide desktop nav on tablet and mobile */
+        @media (max-width: 992px) {
+          .desktop-nav {
+            display: none !important;
+          }
+          .mobile-menu-btn {
+            display: flex !important;
+          }
+        }
+
+        /* Show desktop nav, hide mobile button on large screens */
+        @media (min-width: 993px) {
+          .desktop-nav {
+            display: flex !important;
+          }
+          .mobile-menu-btn {
+            display: none !important;
+          }
+        }
+
+        /* Mobile small screens */
+        @media (max-width: 480px) {
+          .user-nav-inner {
+            padding: 0 0.5rem !important;
+            height: 56px !important;
+          }
+          .user-nav-brand-primary {
+            font-size: 12px !important;
+          }
+          .user-nav-brand-secondary {
+            display: none !important;
+          }
+          .user-nav-brand-icon {
+            width: 28px !important;
+            height: 28px !important;
+            font-size: 10px !important;
+          }
+          .user-nav-username {
+            font-size: 11px !important;
+            display: none !important;
+          }
+          .user-nav-user-wrapper {
+            padding: 0.2rem 0.3rem !important;
+          }
+          .user-nav-right {
+            gap: 0.3rem !important;
+          }
+          .mobile-menu {
+            padding: 0.75rem !important;
+          }
+          .user-nav-mobile-link {
+            padding: 0.5rem 0.75rem !important;
+            font-size: 13px !important;
+          }
+          .user-nav-mobile-link svg {
+            width: 16px !important;
+            height: 16px !important;
+          }
+        }
+
+        /* Tablet */
+        @media (min-width: 481px) and (max-width: 992px) {
+          .user-nav-inner {
+            padding: 0 1rem !important;
+          }
+          .user-nav-brand-primary {
+            font-size: 14px !important;
+          }
+          .user-nav-brand-secondary {
+            font-size: 8px !important;
+          }
+          .user-nav-brand-icon {
+            width: 32px !important;
+            height: 32px !important;
+            font-size: 12px !important;
+          }
+          .user-nav-avatar {
+            width: 24px !important;
+            height: 24px !important;
+            font-size: 10px !important;
+          }
+          .user-nav-username {
+            font-size: 12px !important;
+          }
+          .user-nav-user-wrapper {
+            padding: 0.2rem 0.4rem !important;
+          }
+        }
+      `}</style>
     </div>
   );
 };

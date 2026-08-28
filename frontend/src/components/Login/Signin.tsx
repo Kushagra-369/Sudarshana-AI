@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { GoogleLogin } from "@react-oauth/google";
 import { jwtDecode } from "jwt-decode";
@@ -33,6 +33,22 @@ type LoginRole = "USER" | "BASE_HEAD" | "ADMIN";
 
 const Signin: React.FC = () => {
     const navigate = useNavigate();
+
+    const [isMobile, setIsMobile] = useState(window.innerWidth <= 768);
+    const [isSmallMobile, setIsSmallMobile] = useState(window.innerWidth <= 480);
+
+    useEffect(() => {
+        const handleResize = () => {
+            setIsMobile(window.innerWidth <= 768);
+            setIsSmallMobile(window.innerWidth <= 480);
+        };
+
+        window.addEventListener("resize", handleResize);
+
+        return () => {
+            window.removeEventListener("resize", handleResize);
+        };
+    }, []);
 
     // =====================================================
     // ROLE
@@ -330,13 +346,13 @@ const Signin: React.FC = () => {
                     accessRole: "USER",
                 };
 
-                sessionStorage.setItem(
+                localStorage.setItem(
                     "authUser",
-                    JSON.stringify(userSession)
+                    JSON.stringify(data.user)
                 );
 
                 if (data.token) {
-                    sessionStorage.setItem(
+                    localStorage.setItem(
                         "authToken",
                         data.token
                     );
@@ -353,17 +369,10 @@ const Signin: React.FC = () => {
             if (data.user.role === "BASE_HEAD") {
 
                 // Save authenticated user
-                sessionStorage.setItem(
-                    "authUser",
-                    JSON.stringify(data.user)
-                );
-
+                localStorage.setItem("authUser", JSON.stringify(data.user));
                 // Save JWT
                 if (data.token) {
-                    sessionStorage.setItem(
-                        "authToken",
-                        data.token
-                    );
+                    localStorage.setItem("authToken", data.token);
                 }
 
                 // ---------------------------------------------
@@ -808,16 +817,10 @@ const Signin: React.FC = () => {
 
             if (data.user.role === "USER") {
 
-                sessionStorage.setItem(
-                    "authUser",
-                    JSON.stringify(data.user)
-                );
+                localStorage.setItem("authUser", JSON.stringify(data.user));
 
                 if (data.token) {
-                    sessionStorage.setItem(
-                        "authToken",
-                        data.token
-                    );
+                    localStorage.setItem("authToken", data.token);
                 }
 
                 navigate("/user");
@@ -836,17 +839,10 @@ const Signin: React.FC = () => {
             if (data.user.role === "BASE_HEAD") {
 
                 // Store user
-                sessionStorage.setItem(
-                    "authUser",
-                    JSON.stringify(data.user)
-                );
-
+                localStorage.setItem("authUser", JSON.stringify(data.user));
                 // Store JWT if available
                 if (data.token) {
-                    sessionStorage.setItem(
-                        "authToken",
-                        data.token
-                    );
+                    localStorage.setItem("authToken", data.token);
                 }
 
                 // ---------------------------------------------
@@ -1015,6 +1011,9 @@ const Signin: React.FC = () => {
     };
 
     // =====================================================
+    // RESPONSIVE STYLES
+    // =====================================================
+
     // UI
     // =====================================================
 
@@ -1026,92 +1025,94 @@ const Signin: React.FC = () => {
             <div style={styles.glowOne} />
             <div style={styles.glowTwo} />
 
-            <div style={styles.container}>
+            <div style={isMobile ? styles.containerMobile : styles.container}>
 
                 {/* =================================================
-            LEFT PANEL
+            LEFT PANEL - Hidden on mobile
         ================================================= */}
 
-                <div style={styles.leftPanel}>
+                {!isMobile && (
+                    <div style={styles.leftPanel}>
 
-                    {/* BRAND */}
+                        {/* BRAND */}
 
-                    <div style={styles.brand}>
-                        <div style={styles.logo}>
-                            <Shield size={24} />
-                        </div>
-
-                        <div>
-                            <div style={styles.brandName}>
-                                SUDARSHANA
-                                <span style={styles.brandAccent}>-AI</span>
+                        <div style={styles.brand}>
+                            <div style={styles.logo}>
+                                <Shield size={24} />
                             </div>
 
-                            <div style={styles.brandSub}>
-                                DEFENCE INTELLIGENCE SYSTEM
+                            <div>
+                                <div style={styles.brandName}>
+                                    SUDARSHANA
+                                    <span style={styles.brandAccent}>-AI</span>
+                                </div>
+
+                                <div style={styles.brandSub}>
+                                    DEFENCE INTELLIGENCE SYSTEM
+                                </div>
                             </div>
                         </div>
+
+                        {/* MAIN TEXT */}
+
+                        <div style={styles.leftContent}>
+
+                            <div style={styles.systemLabel}>
+                                <span style={styles.greenDot} />
+                                SECURE ACCESS TERMINAL
+                            </div>
+
+                            <h1 style={styles.heading}>
+                                Command.
+                                <br />
+                                Intelligence.
+                                <br />
+                                <span>Awareness.</span>
+                            </h1>
+
+                            <p style={styles.description}>
+                                Secure access to the Sudarshana-AI
+                                situational awareness platform.
+                            </p>
+
+                        </div>
+
+                        {/* SYSTEM STATUS */}
+
+                        <div style={styles.systemInfo}>
+
+                            <div style={styles.infoItem}>
+                                <span>SYSTEM</span>
+                                <strong>OPERATIONAL</strong>
+                            </div>
+
+                            <div style={styles.infoItem}>
+                                <span>PROCESSING</span>
+                                <strong>LOCAL</strong>
+                            </div>
+
+                            <div style={styles.infoItem}>
+                                <span>SECURITY</span>
+                                <strong>ENABLED</strong>
+                            </div>
+
+                        </div>
                     </div>
-
-                    {/* MAIN TEXT */}
-
-                    <div style={styles.leftContent}>
-
-                        <div style={styles.systemLabel}>
-                            <span style={styles.greenDot} />
-                            SECURE ACCESS TERMINAL
-                        </div>
-
-                        <h1 style={styles.heading}>
-                            Command.
-                            <br />
-                            Intelligence.
-                            <br />
-                            <span>Awareness.</span>
-                        </h1>
-
-                        <p style={styles.description}>
-                            Secure access to the Sudarshana-AI
-                            situational awareness platform.
-                        </p>
-
-                    </div>
-
-                    {/* SYSTEM STATUS */}
-
-                    <div style={styles.systemInfo}>
-
-                        <div style={styles.infoItem}>
-                            <span>SYSTEM</span>
-                            <strong>OPERATIONAL</strong>
-                        </div>
-
-                        <div style={styles.infoItem}>
-                            <span>PROCESSING</span>
-                            <strong>LOCAL</strong>
-                        </div>
-
-                        <div style={styles.infoItem}>
-                            <span>SECURITY</span>
-                            <strong>ENABLED</strong>
-                        </div>
-
-                    </div>
-                </div>
+                )}
 
                 {/* =================================================
-            RIGHT PANEL
+            RIGHT PANEL - Always visible
         ================================================= */}
 
-                <div style={styles.formPanel}>
+                <div style={isMobile ? styles.formPanelMobile : styles.formPanel}>
 
-                    <div style={styles.formContainer}>
+                    <div style={isMobile ? styles.formContainerMobile : styles.formContainer}>
 
                         {/* =================================================
                 ROLE SELECTOR
             ================================================= */}
 
-                        <div style={styles.roleSelector}>
+                        <div style={isSmallMobile ? styles.roleSelectorSmall : styles.roleSelector}>
 
                             {/* USER */}
 
@@ -1182,13 +1183,13 @@ const Signin: React.FC = () => {
                                 {roleName.toUpperCase()}
                             </div>
 
-                            <h2 style={styles.formTitle}>
+                            <h2 style={isSmallMobile ? styles.formTitleSmall : styles.formTitle}>
                                 {isRegisterMode
                                     ? "Create Account"
                                     : "Sign in"}
                             </h2>
 
-                            <p style={styles.formSubtitle}>
+                            <p style={isSmallMobile ? styles.formSubtitleSmall : styles.formSubtitle}>
                                 {isRegisterMode
                                     ? `Create a secure ${roleName.toLowerCase()} account.`
                                     : `Authenticate to access the ${roleName.toLowerCase()} interface.`}
@@ -1453,7 +1454,8 @@ const Signin: React.FC = () => {
                                         }
                                     }}
                                     style={{
-                                        width: "360px",
+                                        width: "100%",
+                                        maxWidth: "360px",
                                         height: "40px",
                                         cursor: "pointer",
                                     }}
@@ -1513,6 +1515,24 @@ const Signin: React.FC = () => {
     );
 };
 
+// ============================================================
+// MEDIA QUERY HOOK
+// ============================================================
+
+const useMediaQuery = (query: string) => {
+    const [matches, setMatches] = useState(false);
+    useEffect(() => {
+        const media = window.matchMedia(query);
+        if (media.matches !== matches) {
+            setMatches(media.matches);
+        }
+        const listener = () => setMatches(media.matches);
+        media.addEventListener("change", listener);
+        return () => media.removeEventListener("change", listener);
+    }, [matches, query]);
+    return matches;
+};
+
 /* =========================================================
    STYLES
 ========================================================= */
@@ -1533,6 +1553,7 @@ const styles: Record<
         overflow: "hidden",
         fontFamily:
             '"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif',
+        padding: "1rem",
     },
 
     grid: {
@@ -1573,6 +1594,19 @@ const styles: Record<
         minHeight: "650px",
         display: "grid",
         gridTemplateColumns: "1.05fr .95fr",
+        border: "1px solid #26352d",
+        background: "#0c1310",
+        position: "relative",
+        zIndex: 2,
+        boxShadow:
+            "0 25px 80px rgba(0,0,0,.45)",
+    },
+
+    containerMobile: {
+        width: "min(420px, 100%)",
+        minHeight: "auto",
+        display: "grid",
+        gridTemplateColumns: "1fr",
         border: "1px solid #26352d",
         background: "#0c1310",
         position: "relative",
@@ -1693,10 +1727,24 @@ const styles: Record<
         alignItems: "center",
         justifyContent: "center",
         background: "#0b110e",
+        padding: "2rem 1rem",
+    },
+
+    formPanelMobile: {
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#0b110e",
+        padding: "1.5rem 0.75rem",
     },
 
     formContainer: {
-        width: "min(360px, 82%)",
+        width: "min(360px, 100%)",
+    },
+
+    formContainerMobile: {
+        width: "100%",
+        maxWidth: "340px",
     },
 
     /* =====================================================
@@ -1707,6 +1755,17 @@ const styles: Record<
         display: "grid",
         gridTemplateColumns:
             "1fr 1fr 1fr",
+        gap: "5px",
+        marginBottom: "27px",
+        padding: "4px",
+        background: "#080d0b",
+        border: "1px solid #26352d",
+    },
+
+    roleSelectorSmall: {
+        display: "grid",
+        gridTemplateColumns:
+            "1fr 1fr",
         gap: "5px",
         marginBottom: "27px",
         padding: "4px",
@@ -1766,11 +1825,24 @@ const styles: Record<
         fontWeight: 650,
     },
 
+    formTitleSmall: {
+        margin: 0,
+        fontSize: "22px",
+        fontWeight: 650,
+    },
+
     formSubtitle: {
         margin: "7px 0 0",
         color: "#6e7a72",
         fontSize: "11px",
         lineHeight: 1.5,
+    },
+
+    formSubtitleSmall: {
+        margin: "7px 0 0",
+        color: "#6e7a72",
+        fontSize: "10px",
+        lineHeight: 1.4,
     },
 
     /* =====================================================
@@ -1901,8 +1973,16 @@ const styles: Record<
         fontSize: "9px",
     },
 
+    googleButtonWrapper: {
+        display: "flex",
+        justifyContent: "center",
+        width: "100%",
+        overflow: "hidden",
+    },
+
     googleButton: {
         width: "100%",
+        maxWidth: "360px",
         height: "43px",
         border:
             "1px solid #2a3930",
