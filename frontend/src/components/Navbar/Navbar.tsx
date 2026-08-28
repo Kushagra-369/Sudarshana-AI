@@ -358,6 +358,11 @@ const Navbar: React.FC<NavbarProps> = ({
   };
 
   const handleLogout = () => {
+    // Clear persistent authentication
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("authUser");
+
+    // Clear any old session-based auth data
     sessionStorage.removeItem("authToken");
     sessionStorage.removeItem("authUser");
     sessionStorage.removeItem("adminPendingAuth");
@@ -367,7 +372,6 @@ const Navbar: React.FC<NavbarProps> = ({
 
     navigate("/signin", { replace: true });
   };
-
   const avatarStyle: React.CSSProperties = {
     width: "22px",
     height: "22px",

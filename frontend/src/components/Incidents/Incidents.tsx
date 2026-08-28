@@ -25,15 +25,22 @@ import { APIURL } from "../../GlobalAPIURL";
 // ============================================================
 // TYPES
 // ============================================================
+interface LocationData {
+  latitude: number;
+  longitude: number;
+  accuracy?: number;
+  updatedAt?: string;
+}
+
 interface Personnel {
   id: string;
   name: string;
   email: string;
   status: "ONLINE" | "WEAK_SIGNAL" | "CONNECTION_LOST";
-  latitude: number;
-  longitude: number;
-  lastUpdate: number;
-  accuracy: number;
+  latitude: number | null;
+  longitude: number | null;
+  lastUpdate: number | null;
+  accuracy: number | null;
   communication: string;
 }
 
@@ -46,6 +53,7 @@ interface RegisteredUser {
   isActive?: boolean;
   authProvider?: string;
   baseId?: string | null;
+  location: LocationData | null;
 }
 
 // ============================================================
@@ -78,16 +86,31 @@ const Incidents: React.FC = () => {
     accentBlue: "#4A8C9E",
   };
 
+  // ---- Status helper based on location age ----
+  const getUserStatus = (
+    isActive: boolean,
+    location: LocationData | null
+  ): "ONLINE" | "WEAK_SIGNAL" | "CONNECTION_LOST" => {
+    if (!isActive) return "CONNECTION_LOST";
+    if (!location?.updatedAt) return "CONNECTION_LOST";
+
+    const lastUpdate = new Date(location.updatedAt).getTime();
+    const age = Date.now() - lastUpdate;
+
+    if (age <= 30000) return "ONLINE";
+    if (age <= 90000) return "WEAK_SIGNAL";
+    return "CONNECTION_LOST";
+  };
+
   // ---- Fetch registered users from backend ----
   const fetchRegisteredUsers = async () => {
     try {
       setLoadingUsers(true);
       setUsersError(null);
 
-      const token = sessionStorage.getItem("authToken");
+      const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
       if (!token) {
         setUsersError("Authentication required. Please login.");
-        setLoadingUsers(false);
         return;
       }
 
@@ -105,21 +128,75 @@ const Incidents: React.FC = () => {
 
       const data = await response.json();
 
-      if (data.success) {
-        const mappedUsers: RegisteredUser[] = data.users.map((user: any) => ({
+      if (!data.success) {
+        throw new Error(data.message || "Failed to fetch users");
+      }
+
+      const mappedUsers: RegisteredUser[] = data.users.map((user: any) => {
+        const location: LocationData | null = user.location
+          ? {
+            latitude: user.location.latitude,
+            longitude: user.location.longitude,
+            accuracy: user.location.accuracy,
+            updatedAt: user.location.updatedAt,
+          }
+          : null;
+
+        return {
           id: user.id,
           name: user.name,
           email: user.email,
-          status: user.isActive ? "ONLINE" : "CONNECTION_LOST",
+          status: getUserStatus(user.isActive, location),
           role: user.role,
           isActive: user.isActive,
           authProvider: user.authProvider,
           baseId: user.baseId,
-        }));
-        setRegisteredUsers(mappedUsers);
-      } else {
-        setUsersError(data.message || "Failed to fetch users");
-      }
+          location,
+        };
+      });
+
+      setRegisteredUsers(mappedUsers);
+
+      // Update team members with fresh backend data
+      setTeamMembers((currentMembers) => {
+        // FIRST LOAD / PAGE RELOAD - Initialize with first 3 users
+        if (currentMembers.length === 0) {
+          return mappedUsers
+            .slice(0, Math.min(3, mappedUsers.length))
+            .map((user): Personnel => ({
+              id: user.id,
+              name: user.name,
+              email: user.email,
+              status: user.status,
+              latitude: user.location?.latitude ?? null,
+              longitude: user.location?.longitude ?? null,
+              lastUpdate: user.location?.updatedAt
+                ? new Date(user.location.updatedAt).getTime()
+                : null,
+              accuracy: user.location?.accuracy ?? null,
+              communication: "LOCAL RADIO LINK",
+            }));
+        }
+
+        // EXISTING TEAM - Update only members already in the team
+        return currentMembers.map((member) => {
+          const updatedUser = mappedUsers.find((user) => user.id === member.id);
+          if (!updatedUser) return member;
+
+          return {
+            ...member,
+            name: updatedUser.name,
+            email: updatedUser.email,
+            status: updatedUser.status,
+            latitude: updatedUser.location?.latitude ?? null,
+            longitude: updatedUser.location?.longitude ?? null,
+            accuracy: updatedUser.location?.accuracy ?? null,
+            lastUpdate: updatedUser.location?.updatedAt
+              ? new Date(updatedUser.location.updatedAt).getTime()
+              : null,
+          };
+        });
+      });
     } catch (error: any) {
       console.error("Error fetching users:", error);
       setUsersError(error.message || "Failed to load users");
@@ -128,78 +205,11 @@ const Incidents: React.FC = () => {
     }
   };
 
-  // ---- Fetch users on component mount ----
+  // ---- Fetch on mount and every 10 seconds ----
   useEffect(() => {
     fetchRegisteredUsers();
-  }, []);
-
-  // ---- Initialize with first 3 users as team members ----
-  useEffect(() => {
-    if (registeredUsers.length > 0 && teamMembers.length === 0) {
-      const defaultMembers = registeredUsers.slice(0, Math.min(3, registeredUsers.length)).map((user) => ({
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        status: user.status,
-        latitude: 28.6 + Math.random() * 0.02,
-        longitude: 77.2 + Math.random() * 0.02,
-        lastUpdate: Date.now(),
-        accuracy: 3 + Math.random() * 8,
-        communication: Math.random() > 0.5 ? "LOCAL RADIO LINK" : "SATELLITE LINK",
-      }));
-      setTeamMembers(defaultMembers);
-    }
-  }, [registeredUsers]);
-
-  // ---- LIVE LOCATION UPDATES ----
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setTeamMembers((prev) =>
-        prev.map((member) => {
-          if (member.status === "CONNECTION_LOST") {
-            const reconnectChance = Math.random();
-            if (reconnectChance < 0.03) {
-              return { ...member, status: "ONLINE" as const, lastUpdate: Date.now() };
-            }
-            return member;
-          }
-
-          const isWeak = member.status === "WEAK_SIGNAL";
-          const shouldUpdate = !isWeak || Math.random() > 0.5;
-          if (!shouldUpdate) return member;
-
-          const latChange = (Math.random() - 0.5) * 0.00005;
-          const lngChange = (Math.random() - 0.5) * 0.00005;
-
-          let newStatus: RegisteredUser["status"] = member.status;
-          const rand = Math.random();
-
-          if (member.status === "ONLINE") {
-            if (rand < 0.02) {
-              newStatus = Math.random() < 0.8 ? "WEAK_SIGNAL" : "CONNECTION_LOST";
-            }
-          } else if (member.status === "WEAK_SIGNAL") {
-            if (rand < 0.05) {
-              newStatus = "ONLINE";
-            } else if (rand < 0.07) {
-              newStatus = "CONNECTION_LOST";
-            }
-          }
-
-          return {
-            ...member,
-            latitude: member.latitude + latChange,
-            longitude: member.longitude + lngChange,
-            lastUpdate: Date.now(),
-            status: newStatus,
-          };
-        })
-      );
-    }, 3000);
-
-    return () => {
-      clearInterval(interval);
-    };
+    const interval = setInterval(fetchRegisteredUsers, 10000);
+    return () => clearInterval(interval);
   }, []);
 
   // ---- Statistics ----
@@ -258,11 +268,11 @@ const Incidents: React.FC = () => {
       name: u.name,
       email: u.email,
       status: u.status,
-      latitude: 28.6 + Math.random() * 0.02,
-      longitude: 77.2 + Math.random() * 0.02,
-      lastUpdate: Date.now(),
-      accuracy: 3 + Math.random() * 8,
-      communication: Math.random() > 0.5 ? "LOCAL RADIO LINK" : "SATELLITE LINK",
+      latitude: u.location?.latitude ?? null,
+      longitude: u.location?.longitude ?? null,
+      lastUpdate: u.location?.updatedAt ? new Date(u.location.updatedAt).getTime() : null,
+      accuracy: u.location?.accuracy ?? null,
+      communication: "LOCAL RADIO LINK",
     }));
 
     const existingIds = new Set(teamMembers.map((m) => m.id));
@@ -701,12 +711,19 @@ const Incidents: React.FC = () => {
                     {getStatusIcon(member.status)}
                     {getStatusLabel(member.status)}
                   </span>
+                  {member.latitude !== null && member.longitude !== null ? (
+                    <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+                      <MapPin size={12} style={{ display: "inline", marginRight: "2px" }} />
+                      {member.latitude.toFixed(4)}°N, {member.longitude.toFixed(4)}°E
+                    </span>
+                  ) : (
+                    <span style={{ fontSize: "10px", color: colors.textSecondary }}>
+                      <MapPin size={12} style={{ display: "inline", marginRight: "2px" }} />
+                      No Location
+                    </span>
+                  )}
                   <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-                    <MapPin size={12} style={{ display: "inline", marginRight: "2px" }} />
-                    {member.latitude.toFixed(4)}°N, {member.longitude.toFixed(4)}°E
-                  </span>
-                  <span style={{ fontSize: "10px", color: colors.textSecondary }}>
-                    {member.status === "ONLINE" ? "Live" : `${Math.round((Date.now() - member.lastUpdate) / 1000)}s ago`}
+                    {member.status === "ONLINE" ? "Live" : member.lastUpdate ? `${Math.round((Date.now() - member.lastUpdate) / 1000)}s ago` : "No data"}
                   </span>
                   <button
                     style={removeButtonStyle}
@@ -743,21 +760,21 @@ const Incidents: React.FC = () => {
                   </div>
                   <div style={detailRowStyle}>
                     <span>Latitude</span>
-                    <span style={{ color: colors.textPrimary }}>{member.latitude.toFixed(6)}° N</span>
+                    <span style={{ color: colors.textPrimary }}>{member.latitude !== null ? `${member.latitude.toFixed(6)}° N` : "N/A"}</span>
                   </div>
                   <div style={detailRowStyle}>
                     <span>Longitude</span>
-                    <span style={{ color: colors.textPrimary }}>{member.longitude.toFixed(6)}° E</span>
+                    <span style={{ color: colors.textPrimary }}>{member.longitude !== null ? `${member.longitude.toFixed(6)}° E` : "N/A"}</span>
                   </div>
                   <div style={detailRowStyle}>
                     <span>Last Update</span>
                     <span style={{ color: colors.textPrimary }}>
-                      {new Date(member.lastUpdate).toLocaleTimeString()}
+                      {member.lastUpdate ? new Date(member.lastUpdate).toLocaleTimeString() : "N/A"}
                     </span>
                   </div>
                   <div style={detailRowStyle}>
                     <span>Location Accuracy</span>
-                    <span style={{ color: colors.textPrimary }}>± {member.accuracy.toFixed(1)} m</span>
+                    <span style={{ color: colors.textPrimary }}>{member.accuracy !== null ? `± ${member.accuracy.toFixed(1)} m` : "N/A"}</span>
                   </div>
                   <div style={detailRowStyle}>
                     <span>Communication</span>
@@ -783,6 +800,7 @@ const Incidents: React.FC = () => {
             </span>
           </div>
           <div style={mapGridStyle}>
+            {/* Grid lines */}
             <div style={{
               position: "absolute",
               top: 0,
@@ -797,11 +815,25 @@ const Incidents: React.FC = () => {
               opacity: 0.3,
             }} />
 
+            {/* Personnel markers - Only show users with real coordinates */}
             {teamMembers.map((member) => {
-              const latMin = 28.61;
-              const latMax = 28.62;
-              const lngMin = 77.205;
-              const lngMax = 77.215;
+              // Only show on map if coordinates exist
+              if (member.latitude === null || member.longitude === null) return null;
+
+              // Find min/max for dynamic scaling
+              const validMembers = teamMembers.filter(
+                (m) => m.latitude !== null && m.longitude !== null
+              );
+
+              const lats = validMembers.map((m) => m.latitude!);
+              const lngs = validMembers.map((m) => m.longitude!);
+
+              const latMin = lats.length ? Math.min(...lats) - 0.002 : 0;
+              const latMax = lats.length ? Math.max(...lats) + 0.002 : 1;
+              const lngMin = lngs.length ? Math.min(...lngs) - 0.002 : 0;
+              const lngMax = lngs.length ? Math.max(...lngs) + 0.002 : 1;
+
+              
 
               const x = ((member.longitude - lngMin) / (lngMax - lngMin)) * 100;
               const y = ((member.latitude - latMin) / (latMax - latMin)) * 100;
@@ -851,6 +883,7 @@ const Incidents: React.FC = () => {
               );
             })}
 
+            {/* Legend */}
             <div style={{
               position: "absolute",
               bottom: "8px",
@@ -981,6 +1014,7 @@ const Incidents: React.FC = () => {
                       const isSelected = selectedUsers.includes(user.id);
                       const alreadyInTeam = teamMembers.some((m) => m.id === user.id);
                       const statusColor = getStatusColor(user.status);
+                      const hasLocation = user.location !== null;
 
                       return (
                         <div
@@ -1018,6 +1052,12 @@ const Incidents: React.FC = () => {
                             {user.role && (
                               <div style={{ fontSize: "9px", color: colors.textSecondary, marginTop: "2px" }}>
                                 Role: {user.role} • {user.isActive ? "Active" : "Inactive"}
+                              </div>
+                            )}
+                            {hasLocation && user.location && (
+                              <div style={{ fontSize: "9px", color: colors.textSecondary, marginTop: "2px" }}>
+                                <MapPin size={10} style={{ display: "inline", marginRight: "2px" }} />
+                                {user.location.latitude.toFixed(4)}°N, {user.location.longitude.toFixed(4)}°E
                               </div>
                             )}
                           </div>

@@ -1,5 +1,9 @@
 package com.sudarshna.ai.mobile
 
+import android.Manifest
+import android.content.pm.PackageManager
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import android.annotation.SuppressLint
 import android.content.Intent
 import android.os.Bundle
@@ -15,6 +19,8 @@ import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 
 class MainActivity : ComponentActivity() {
+
+    private val LOCATION_PERMISSION_REQUEST = 2001
 
 
     override fun onConfigurationChanged(newConfig: Configuration) {
@@ -72,11 +78,37 @@ class MainActivity : ComponentActivity() {
             "AndroidGoogleAuth"
         )
 
+        webView.addJavascriptInterface(
+            LocationBridge(),
+            "AndroidLocation"
+        )
+
         webView.loadUrl(ApiConfig.WEB_URL)
 
         setContentView(webView)
+
+        requestLocationPermission()
     }
 
+    private fun requestLocationPermission() {
+
+        if (
+            ContextCompat.checkSelfPermission(
+                this,
+                Manifest.permission.ACCESS_FINE_LOCATION
+            ) != PackageManager.PERMISSION_GRANTED
+        ) {
+
+            ActivityCompat.requestPermissions(
+                this,
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                ),
+                LOCATION_PERMISSION_REQUEST
+            )
+        }
+    }
 
     // ============================================================
     // START GOOGLE SIGN IN
@@ -296,6 +328,74 @@ class MainActivity : ComponentActivity() {
 
                 startNativeGoogleSignIn()
             }
+        }
+    }
+
+    inner class LocationBridge {
+
+        @JavascriptInterface
+        fun saveAuthToken(token: String) {
+
+            Log.d(
+                "LIVE_LOCATION",
+                "Auth token received from React"
+            )
+
+            getSharedPreferences(
+                "SudarshanaPrefs",
+                MODE_PRIVATE
+            )
+                .edit()
+                .putString("authToken", token)
+                .apply()
+
+            Log.d(
+                "LIVE_LOCATION",
+                "Auth token saved successfully"
+            )
+        }
+
+        @JavascriptInterface
+        fun startLocationTracking() {
+
+            Log.d(
+                "LIVE_LOCATION",
+                "React requested location tracking START"
+            )
+
+            val intent = Intent(
+                this@MainActivity,
+                LocationService::class.java
+            ).apply {
+                action = LocationService.ACTION_START
+            }
+
+            if (
+                android.os.Build.VERSION.SDK_INT >=
+                android.os.Build.VERSION_CODES.O
+            ) {
+                startForegroundService(intent)
+            } else {
+                startService(intent)
+            }
+        }
+
+        @JavascriptInterface
+        fun stopLocationTracking() {
+
+            Log.d(
+                "LIVE_LOCATION",
+                "React requested location tracking STOP"
+            )
+
+            val intent = Intent(
+                this@MainActivity,
+                LocationService::class.java
+            ).apply {
+                action = LocationService.ACTION_STOP
+            }
+
+            startService(intent)
         }
     }
 }

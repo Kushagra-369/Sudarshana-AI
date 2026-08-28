@@ -955,13 +955,13 @@ export const googleLogin = async (
       "🔎 Existing User:",
       user
         ? {
-            id: user._id.toString(),
-            email: user.email,
-            role: user.role,
-            status: user.status,
-            authProvider: user.authProvider,
-            hasGoogleId: !!user.googleId,
-          }
+          id: user._id.toString(),
+          email: user.email,
+          role: user.role,
+          status: user.status,
+          authProvider: user.authProvider,
+          hasGoogleId: !!user.googleId,
+        }
         : "NO USER FOUND"
     );
 
@@ -1864,7 +1864,7 @@ export const getAllUsers = async (
       role: "USER",
     })
       .select(
-        "_id name email role status authProvider baseId isActive emailVerified createdAt updatedAt"
+        "_id name email role status authProvider baseId isActive emailVerified location createdAt updatedAt"
       )
       .sort({
         createdAt: -1,
@@ -1873,6 +1873,7 @@ export const getAllUsers = async (
     return res.status(200).json({
       success: true,
       count: users.length,
+
       users: users.map((user) => ({
         id: user._id.toString(),
         name: user.name,
@@ -1885,6 +1886,16 @@ export const getAllUsers = async (
         emailVerified: user.emailVerified,
         createdAt: user.createdAt,
         updatedAt: user.updatedAt,
+
+        // REAL DEVICE LOCATION
+        location: user.location
+          ? {
+            latitude: user.location.latitude,
+            longitude: user.location.longitude,
+            accuracy: user.location.accuracy,
+            updatedAt: user.location.updatedAt,
+          }
+          : null,
       })),
     });
   } catch (error) {
@@ -1893,6 +1904,73 @@ export const getAllUsers = async (
     return res.status(500).json({
       success: false,
       message: "Failed to fetch users",
+    });
+  }
+};
+
+export const updateMyLocation = async (
+  req: AuthRequest,
+  res: Response
+) => {
+  try {
+    const userId = req.userId;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized",
+      });
+    }
+
+    const { latitude, longitude, accuracy } = req.body;
+
+    if (
+      typeof latitude !== "number" ||
+      typeof longitude !== "number"
+    ) {
+      return res.status(400).json({
+        success: false,
+        message: "Latitude and longitude are required",
+      });
+    }
+
+    const user = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          location: {
+            latitude,
+            longitude,
+            accuracy:
+              typeof accuracy === "number"
+                ? accuracy
+                : undefined,
+            updatedAt: new Date(),
+          },
+        },
+      },
+      { new: true }
+    ).select("_id location");
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: "User not found",
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: "Location updated",
+      location: user.location,
+    });
+
+  } catch (error) {
+    console.error("Update Location Error:", error);
+
+    return res.status(500).json({
+      success: false,
+      message: "Failed to update location",
     });
   }
 };

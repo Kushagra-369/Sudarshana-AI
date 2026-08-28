@@ -32,6 +32,10 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
 
 
   const handleLogout = () => {
+
+    if (window.AndroidLocation) {
+      window.AndroidLocation.stopLocationTracking();
+    }
     // Remove authentication/session data
     localStorage.removeItem("authToken");
     localStorage.removeItem("authUser");
@@ -79,6 +83,32 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
     };
 
     fetchCurrentUser();
+  }, []);
+
+  useEffect(() => {
+    const token = localStorage.getItem("authToken");
+
+    if (!token) {
+      return;
+    }
+
+    if (window.AndroidLocation) {
+
+      console.log("📍 Sending auth token to Android");
+
+      window.AndroidLocation.saveAuthToken(token);
+
+      console.log("📍 Starting live location tracking");
+
+      window.AndroidLocation.startLocationTracking();
+
+    } else {
+
+      console.log(
+        "📍 AndroidLocation bridge not available"
+      );
+    }
+
   }, []);
 
   const colors = {

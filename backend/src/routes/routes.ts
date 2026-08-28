@@ -3,7 +3,7 @@ import express, {
   Response,
 } from "express"; const router = express.Router();
 import User from "../models/user_model";
-import { googleLogin, loginUser, registerUser, getCurrentUser,verifyEmailOTP,resendEmailOTP , getAllUsers} from "../controller/user_controller"
+import { googleLogin, loginUser, registerUser, getCurrentUser,verifyEmailOTP,resendEmailOTP , getAllUsers, updateMyLocation} from "../controller/user_controller"
 import { authenticateToken, AuthRequest } from "../middleware/auth_middleware";
 import { adminLogin, verifyAdminTOTP, } from "../controller/admin_auth_controller";
 import { setupAdminTOTP, confirmAdminTOTP, } from "../services/admin_auth_service";
@@ -18,7 +18,7 @@ router.get("/me", authenticateToken, getCurrentUser);
 router.post("/verify-email-otp",verifyEmailOTP);
 router.post("/resend-email-otp",resendEmailOTP);
 router.get("/get_all_users", getAllUsers);
-
+router.post("/update_location",authenticateToken,updateMyLocation);
 //admin
 router.get("/admin/head-requests", authenticateToken, requireAdmin, getBaseHeadRequests);
 router.post("/admin/head-requests/:id/approve", authenticateToken, requireAdmin, approveBaseHead);

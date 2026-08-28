@@ -59,11 +59,8 @@ interface Violation {
   status: "ACTIVE" | "RESOLVED";
 }
 
-// ============================================================
-// VIDEO IMPORTS
-// ============================================================
-import cam3Video from "../../../public/videos/cam3.mp4";
-import cam4Video from "../../../public/videos/cam4.mp4";
+const cam3Video  = "/videos/cam3.mp4";
+const cam4Video = "/videos/cam4.mp4";
 
 // ============================================================
 // COMPONENT

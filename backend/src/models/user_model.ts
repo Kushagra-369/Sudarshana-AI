@@ -25,6 +25,13 @@ export interface IUser extends Document {
 
   isActive: boolean;
 
+  location?: {
+    latitude: number;
+    longitude: number;
+    accuracy?: number;
+    updatedAt: Date;
+  };
+
   createdAt: Date;
   updatedAt: Date;
   totpSecret?: string | null;
@@ -96,6 +103,27 @@ const userSchema = new Schema<IUser>(
       type: Boolean,
       default: true,
     },
+
+    location: {
+      latitude: {
+        type: Number,
+        required: false,
+      },
+      longitude: {
+        type: Number,
+        required: false,
+      },
+      accuracy: {
+        type: Number,
+        required: false,
+      },
+      updatedAt: {
+        type: Date,
+        required: false,
+      },
+    },
+
+
 
     emailVerified: {
       type: Boolean,
