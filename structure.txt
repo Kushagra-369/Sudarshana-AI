@@ -41,3 +41,47 @@ Sudarshana-AI/
 │
 ├── README.md
 └── .gitignore
+
+
+
+
+
+
+                  SUDARSHANA-AI
+                         │
+          ┌──────────────┴──────────────┐
+          │                             │
+      SURVEILLANCE                  KNOWLEDGE
+          │                             │
+       Video                        SOPs
+          │                             │
+        YOLO                           Chunk
+          │                             │
+     ByteTrack                      Embedding
+          │                             │
+     Track ID                       ChromaDB
+          │                             │
+    Trajectory                          │
+          │                             │
+      Anomaly                            │
+          │                             │
+      Risk Score                         │
+          │                             │
+          └──────────────┬──────────────┘
+                         │
+                    EVENT / QUERY
+                         │
+                         ▼
+                    RETRIEVAL
+                         │
+                         ▼
+                  Relevant SOPs
+                         │
+                         ▼
+                       LLM
+                         │
+                         ▼
+               AI Recommendation
+                         │
+                         ▼
+                     DASHBOARD
