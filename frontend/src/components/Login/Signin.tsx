@@ -199,7 +199,7 @@ const Signin: React.FC = () => {
                 // STORE TEMPORARY ADMIN SESSION
                 // -------------------------------
 
-                sessionStorage.setItem(
+                localStorage.setItem(
                     "adminPendingAuth",
                     JSON.stringify({
                         user: adminData.user,
@@ -793,7 +793,7 @@ const Signin: React.FC = () => {
                     return;
                 }
 
-                sessionStorage.setItem(
+                localStorage.setItem(
                     "adminPendingAuth",
                     JSON.stringify({
                         user: data.user,

@@ -9,12 +9,22 @@ import android.webkit.WebViewClient
 import android.util.Log
 
 import androidx.activity.ComponentActivity
-
+import android.content.res.Configuration
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
 
 class MainActivity : ComponentActivity() {
+
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+
+        Log.d(
+            TAG,
+            "Configuration changed: orientation=${newConfig.orientation}"
+        )
+    }
 
     private lateinit var webView: WebView
 

@@ -1,6 +1,16 @@
 // components/UserNavbar.tsx
 import React, { useEffect, useState } from "react";
-import { Menu, X, Home, Bell, Shield, Info, Bot } from "lucide-react";
+import {
+  Menu,
+  X,
+  Home,
+  Bell,
+  Shield,
+  Info,
+  Bot,
+  ChevronDown,
+  LogOut,
+} from "lucide-react";
 import { APIURL } from "../../GlobalAPIURL";
 
 export interface UserNavbarProps {
@@ -18,11 +28,31 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [currentUserName, setCurrentUserName] = useState(userName);
+  const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+
+
+  const handleLogout = () => {
+    // Remove authentication/session data
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("authUser");
+
+    // In case any old sessionStorage token exists
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("authUser");
+
+    // Close menus
+    setIsUserMenuOpen(false);
+    setIsMobileMenuOpen(false);
+
+    // Redirect to signin
+    window.location.href = "/signin";
+  };
+
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
-        const token = sessionStorage.getItem("authToken");
+        const token = localStorage.getItem("authToken");
         if (!token) return;
 
         const response = await fetch(`${APIURL}/me`, {
@@ -67,6 +97,73 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
     { id: "information", label: "Information", icon: Info },
     { id: "assistant", label: "AI Assistant", icon: Bot },
   ];
+
+  const userMenuContainerStyle: React.CSSProperties = {
+    position: "relative",
+  };
+
+  const userDropdownStyle: React.CSSProperties = {
+    position: "absolute",
+    top: "calc(100% + 8px)",
+    right: 0,
+    width: "210px",
+    background: colors.bg,
+    border: `1px solid ${colors.border}`,
+    borderRadius: "6px",
+    boxShadow: "0 12px 30px rgba(0,0,0,0.35)",
+    overflow: "hidden",
+    zIndex: 2000,
+  };
+
+  const userDropdownHeaderStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "10px",
+    padding: "12px",
+  };
+
+  const userDropdownAvatarStyle: React.CSSProperties = {
+    width: "34px",
+    height: "34px",
+    borderRadius: "50%",
+    background: colors.surface,
+    border: `1px solid ${colors.border}`,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    fontSize: "13px",
+    fontWeight: 700,
+    color: colors.textPrimary,
+    flexShrink: 0,
+  };
+
+  const userDropdownUserInfoStyle: React.CSSProperties = {
+    display: "flex",
+    flexDirection: "column",
+    gap: "3px",
+    minWidth: 0,
+  };
+
+  const dropdownDividerStyle: React.CSSProperties = {
+    height: "1px",
+    background: colors.border,
+  };
+
+  const logoutButtonStyle: React.CSSProperties = {
+    width: "100%",
+    display: "flex",
+    alignItems: "center",
+    gap: "9px",
+    padding: "11px 12px",
+    border: "none",
+    background: "transparent",
+    color: "#D87874",
+    fontSize: "12px",
+    fontWeight: 600,
+    cursor: "pointer",
+    textAlign: "left",
+    fontFamily: "inherit",
+  };
 
   const containerStyle: React.CSSProperties = {
     background: colors.bg,
@@ -273,13 +370,60 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
 
         {/* Right Section */}
         <div style={rightSectionStyle}>
-          <div style={userWrapperStyle}>
-            <div style={avatarStyle}>
-              {currentUserName.charAt(0).toUpperCase()}
-            </div>
-            <span style={userNameStyle}>
-              {currentUserName}
-            </span>
+          <div style={userMenuContainerStyle}>
+            <button
+              type="button"
+              style={userWrapperStyle}
+              onClick={() =>
+                setIsUserMenuOpen(!isUserMenuOpen)
+              }
+              aria-expanded={isUserMenuOpen}
+              aria-haspopup="menu"
+            >
+              <div style={avatarStyle}>
+                {currentUserName.charAt(0).toUpperCase()}
+              </div>
+
+              <span style={userNameStyle}>
+                {currentUserName}
+              </span>
+
+              <ChevronDown
+                size={15}
+                style={{
+                  transform: isUserMenuOpen
+                    ? "rotate(180deg)"
+                    : "rotate(0deg)",
+                  transition: "transform 0.2s ease",
+                }}
+              />
+            </button>
+
+            {isUserMenuOpen && (
+              <div style={userDropdownStyle}>
+                <div style={userDropdownHeaderStyle}>
+                  <div style={userDropdownAvatarStyle}>
+                    {currentUserName.charAt(0).toUpperCase()}
+                  </div>
+
+                  <div style={userDropdownUserInfoStyle}>
+                    <strong>{currentUserName}</strong>
+                    <span>USER</span>
+                  </div>
+                </div>
+
+                <div style={dropdownDividerStyle} />
+
+                <button
+                  type="button"
+                  style={logoutButtonStyle}
+                  onClick={handleLogout}
+                >
+                  <LogOut size={16} />
+                  <span>Logout</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Mobile Menu Button - Visible on mobile */}
@@ -315,6 +459,8 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
         </div>
       )}
 
+
+
       {/* Responsive CSS */}
       <style>{`
         /* Hide desktop nav on tablet and mobile */
@@ -326,6 +472,8 @@ const UserNavbar: React.FC<UserNavbarProps> = ({
             display: flex !important;
           }
         }
+
+        
 
         /* Show desktop nav, hide mobile button on large screens */
         @media (min-width: 993px) {

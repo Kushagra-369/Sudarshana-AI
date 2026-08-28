@@ -61,6 +61,64 @@ function AppContent() {
   const location = useLocation();
   const navigate = useNavigate();
 
+  const getInitialRoute = () => {
+
+    const token =
+      localStorage.getItem("authToken");
+
+    const userRaw =
+      localStorage.getItem("authUser");
+
+    if (!token || !userRaw) {
+      return "/signin";
+    }
+
+    try {
+
+      const user = JSON.parse(userRaw);
+
+      if (
+        user.role === "USER"
+      ) {
+        return "/user";
+      }
+
+      if (
+        user.role === "ADMIN"
+      ) {
+        return "/admin";
+      }
+
+      if (
+        user.role === "BASE_HEAD"
+      ) {
+        if (
+          user.status === "APPROVED" &&
+          user.baseId
+        ) {
+          return "/command";
+        }
+
+        if (
+          user.status === "PENDING"
+        ) {
+          return "/waiting-for-approval";
+        }
+
+        return "/base-setup";
+      }
+
+    } catch (error) {
+
+      console.error(
+        "Failed to restore saved user:",
+        error
+      );
+    }
+
+    return "/signin";
+  };
+
   // ==========================================================
   // USER ACTIVE PAGE
   // ==========================================================
@@ -204,7 +262,7 @@ function AppContent() {
           path="/"
           element={
             <Navigate
-              to="/signin"
+              to={getInitialRoute()}
               replace
             />
           }
