@@ -11,3 +11,4 @@ pip install opencv-python
 
 pip install fastapi uvicorn[standard]
 pip install chromadb sentence-transformers
+python -m pip install google-genai
