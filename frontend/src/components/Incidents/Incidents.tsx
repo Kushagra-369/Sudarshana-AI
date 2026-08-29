@@ -19,6 +19,9 @@ import {
   AlertCircle,
   Loader2,
   RefreshCw,
+  AlertTriangle,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
 import { APIURL } from "../../GlobalAPIURL";
 
@@ -69,6 +72,14 @@ const Incidents: React.FC = () => {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [expandedMember, setExpandedMember] = useState<string | null>(null);
   const [removeConfirm, setRemoveConfirm] = useState<string | null>(null);
+
+  // ---- ALARM STATE ----
+  const alarmAudioRef = useRef<HTMLAudioElement | null>(null);
+  const previousLostUsersRef = useRef<Set<string>>(new Set());
+  const [alarmEnabled, setAlarmEnabled] = useState(false);
+  const [isAlarmPlaying, setIsAlarmPlaying] = useState(false);
+  const [lostUsers, setLostUsers] = useState<string[]>([]);
+  const [showAlertBanner, setShowAlertBanner] = useState(false);
 
   // ---- COLORS ----
   const colors = {
@@ -212,6 +223,120 @@ const Incidents: React.FC = () => {
     return () => clearInterval(interval);
   }, []);
 
+  // ---- ALARM SETUP ----
+  useEffect(() => {
+    const audio = new Audio("/videos/alarm.wav");
+    audio.loop = true;
+    audio.volume = 0.8;
+    alarmAudioRef.current = audio;
+
+    return () => {
+      audio.pause();
+      audio.currentTime = 0;
+    };
+  }, []);
+
+  // ---- ALARM LOGIC ----
+  // ---- ALARM LOGIC ----
+  useEffect(() => {
+    const currentLostUsers = teamMembers
+      .filter((member) => member.status === "CONNECTION_LOST")
+      .map((member) => member.id);
+
+    setLostUsers(currentLostUsers);
+
+    const lostSet = new Set(currentLostUsers);
+    const prevLostSet = previousLostUsersRef.current;
+
+    const hasNewLost = currentLostUsers.some(
+      (id) => !prevLostSet.has(id)
+    );
+
+    setShowAlertBanner(currentLostUsers.length > 0);
+
+    const audio = alarmAudioRef.current;
+
+    // 🔴 New connection lost OR alarm manually enabled while someone is already lost
+    if (
+      currentLostUsers.length > 0 &&
+      alarmEnabled &&
+      audio &&
+      (hasNewLost || !prevLostSet.size)
+    ) {
+      audio.currentTime = 0;
+
+      audio.play()
+        .then(() => {
+          setIsAlarmPlaying(true);
+        })
+        .catch((err) => {
+          console.error("ALARM PLAY FAILED:", err);
+          setIsAlarmPlaying(false);
+        });
+    }
+
+    // 🟢 Everyone connected again
+    if (currentLostUsers.length === 0 && audio) {
+      audio.pause();
+      audio.currentTime = 0;
+      setIsAlarmPlaying(false);
+    }
+
+    previousLostUsersRef.current = lostSet;
+  }, [teamMembers, alarmEnabled]);
+
+  // ---- Enable/Disable Alarm ----
+  const toggleAlarm = async () => {
+    const audio = alarmAudioRef.current;
+
+    if (!audio) {
+      console.error("Alarm audio is not initialized");
+      return;
+    }
+
+    if (!alarmEnabled) {
+      try {
+        // Browser permission unlock
+        audio.currentTime = 0;
+        await audio.play();
+
+        // Immediately stop test sound
+        audio.pause();
+        audio.currentTime = 0;
+
+        setAlarmEnabled(true);
+
+        // 🚨 IMPORTANT:
+        // If someone is ALREADY connection lost,
+        // start the alarm immediately.
+        const hasLostPersonnel = teamMembers.some(
+          (member) => member.status === "CONNECTION_LOST"
+        );
+
+        if (hasLostPersonnel) {
+          audio.currentTime = 0;
+
+          await audio.play();
+
+          setIsAlarmPlaying(true);
+        }
+
+      } catch (err) {
+        console.error("Could not enable alarm:", err);
+
+        setAlarmEnabled(true);
+      }
+
+    } else {
+      // 🔇 Disable alarm
+      audio.pause();
+      audio.currentTime = 0;
+
+      setIsAlarmPlaying(false);
+      setAlarmEnabled(false);
+    }
+  };
+
   // ---- Statistics ----
   const stats = {
     total: teamMembers.length,
@@ -353,6 +478,30 @@ const Incidents: React.FC = () => {
     background: `${colors.accentGreen}15`,
   };
 
+  // ---- ALARM BANNER ----
+  const alarmBannerStyle: React.CSSProperties = {
+    background: `${colors.accentRed}20`,
+    border: `2px solid ${colors.accentRed}`,
+    padding: "0.75rem 1rem",
+    marginBottom: "1rem",
+    display: showAlertBanner ? "flex" : "none",
+    alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: "4px",
+    flexWrap: "wrap",
+    gap: "0.5rem",
+    animation: "pulse-banner 1.5s ease-in-out infinite",
+  };
+
+  const alarmTextStyle: React.CSSProperties = {
+    display: "flex",
+    alignItems: "center",
+    gap: "0.5rem",
+    color: colors.accentRed,
+    fontWeight: 700,
+    fontSize: "13px",
+  };
+
   // ---- STATS ----
   const statsGridStyle: React.CSSProperties = {
     display: "grid",
@@ -390,6 +539,7 @@ const Incidents: React.FC = () => {
 
   const memberCardStyle = (status: string, expanded: boolean): React.CSSProperties => {
     const borderColor = getStatusColor(status);
+    const isLost = status === "CONNECTION_LOST";
     return {
       background: colors.surface,
       border: `1px solid ${expanded ? borderColor : colors.border}`,
@@ -397,6 +547,7 @@ const Incidents: React.FC = () => {
       padding: expanded ? "1rem" : "0.75rem 1rem",
       cursor: "pointer",
       transition: "all 0.2s",
+      boxShadow: isLost ? `0 0 20px ${colors.accentRed}33` : "none",
     };
   };
 
@@ -426,7 +577,8 @@ const Incidents: React.FC = () => {
     background: getStatusColor(status),
     display: "inline-block",
     marginRight: "4px",
-    boxShadow: status === "ONLINE" ? `0 0 12px ${colors.accentGreen}44` : "none",
+    boxShadow: status === "ONLINE" ? `0 0 12px ${colors.accentGreen}44` : status === "CONNECTION_LOST" ? `0 0 20px ${colors.accentRed}66` : "none",
+    animation: status === "CONNECTION_LOST" ? "pulse-dot 0.8s infinite" : "none",
   });
 
   const statusLabelStyle = (status: string): React.CSSProperties => ({
@@ -607,6 +759,22 @@ const Incidents: React.FC = () => {
     gap: "0.3rem",
   };
 
+  const alarmButtonStyle = (enabled: boolean): React.CSSProperties => ({
+    padding: "0.3rem 0.75rem",
+    borderRadius: "4px",
+    border: `1px solid ${enabled ? colors.accentRed : colors.border}`,
+    background: enabled ? `${colors.accentRed}20` : "transparent",
+    color: enabled ? colors.accentRed : colors.textSecondary,
+    fontSize: "10px",
+    fontWeight: 600,
+    cursor: "pointer",
+    fontFamily: "inherit",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.3rem",
+    transition: "all 0.15s",
+  });
+
   // ============================================================
   // RENDER
   // ============================================================
@@ -625,6 +793,23 @@ const Incidents: React.FC = () => {
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
+          <button
+            style={alarmButtonStyle(alarmEnabled)}
+            onClick={toggleAlarm}
+            title={alarmEnabled ? "Disable alarm" : "Enable alarm"}
+          >
+            {alarmEnabled ? (
+              <>
+                {isAlarmPlaying ? <Volume2 size={14} /> : <VolumeX size={14} />}
+                {isAlarmPlaying ? "ALARM ACTIVE" : "ALARM ON"}
+              </>
+            ) : (
+              <>
+                <VolumeX size={14} />
+                ALARM OFF
+              </>
+            )}
+          </button>
           <button style={refreshButtonStyle} onClick={fetchRegisteredUsers} disabled={loadingUsers}>
             <RefreshCw size={12} className={loadingUsers ? "animate-spin" : ""} />
             Refresh
@@ -638,6 +823,27 @@ const Incidents: React.FC = () => {
             <Plus size={16} />
             Create Team
           </button>
+        </div>
+      </div>
+
+      {/* ALARM BANNER */}
+      <div style={alarmBannerStyle}>
+        <div style={alarmTextStyle}>
+          <AlertTriangle size={20} />
+          <span>
+            {lostUsers.length > 0
+              ? `⚠️ ${lostUsers.length} PERSONNEL CONNECTION LOST`
+              : "✅ All personnel connected"}
+          </span>
+        </div>
+        <div style={{ fontSize: "11px", color: colors.textSecondary }}>
+          {isAlarmPlaying && alarmEnabled ? (
+            <span style={{ color: colors.accentRed, fontWeight: 700 }}>🔊 ALARM ACTIVE</span>
+          ) : lostUsers.length > 0 ? (
+            <span style={{ color: colors.accentAmber }}>Alarm disabled</span>
+          ) : (
+            <span style={{ color: colors.accentGreen }}>All clear</span>
+          )}
         </div>
       </div>
 
@@ -705,6 +911,18 @@ const Incidents: React.FC = () => {
                   <span style={{ fontSize: "10px", color: colors.textSecondary }}>
                     {member.id.slice(0, 8)}
                   </span>
+                  {member.status === "CONNECTION_LOST" && (
+                    <span style={{
+                      fontSize: "8px",
+                      fontWeight: 700,
+                      color: colors.accentRed,
+                      background: `${colors.accentRed}15`,
+                      padding: "0.1rem 0.4rem",
+                      borderRadius: "2px",
+                    }}>
+                      LOST
+                    </span>
+                  )}
                 </div>
                 <div style={{ display: "flex", alignItems: "center", gap: "1rem", flexWrap: "wrap" }}>
                   <span style={statusLabelStyle(member.status)}>
@@ -833,8 +1051,6 @@ const Incidents: React.FC = () => {
               const lngMin = lngs.length ? Math.min(...lngs) - 0.002 : 0;
               const lngMax = lngs.length ? Math.max(...lngs) + 0.002 : 1;
 
-              
-
               const x = ((member.longitude - lngMin) / (lngMax - lngMin)) * 100;
               const y = ((member.latitude - latMin) / (latMax - latMin)) * 100;
 
@@ -859,9 +1075,9 @@ const Incidents: React.FC = () => {
                     height: "12px",
                     borderRadius: "50%",
                     background: color,
-                    boxShadow: isOnline ? `0 0 20px ${color}66` : `0 0 8px ${color}44`,
+                    boxShadow: isOnline ? `0 0 20px ${color}66` : member.status === "CONNECTION_LOST" ? `0 0 30px ${color}77` : `0 0 8px ${color}44`,
                     border: `2px solid ${colors.bg}`,
-                    animation: isOnline ? "pulse-dot 2s infinite" : "none",
+                    animation: isOnline ? "pulse-dot 2s infinite" : member.status === "CONNECTION_LOST" ? "pulse-dot 0.8s infinite" : "none",
                   }}>
                     <div style={{
                       position: "absolute",
@@ -870,13 +1086,14 @@ const Incidents: React.FC = () => {
                       transform: "translateX(-50%)",
                       fontSize: "8px",
                       fontWeight: 600,
-                      color: colors.textPrimary,
+                      color: member.status === "CONNECTION_LOST" ? colors.accentRed : colors.textPrimary,
                       whiteSpace: "nowrap",
                       background: "rgba(0,0,0,0.7)",
                       padding: "1px 4px",
                       borderRadius: "2px",
                     }}>
                       {member.id.slice(0, 8)}
+                      {member.status === "CONNECTION_LOST" && " ⚠"}
                     </div>
                   </div>
                 </div>
@@ -1118,6 +1335,10 @@ const Incidents: React.FC = () => {
         @keyframes pulse-dot {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.4; }
+        }
+        @keyframes pulse-banner {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.6; }
         }
         @keyframes spin {
           from { transform: rotate(0deg); }
