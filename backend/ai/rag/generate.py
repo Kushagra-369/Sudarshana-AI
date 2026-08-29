@@ -5,6 +5,7 @@
 
 from pathlib import Path
 import os
+import json
 
 import chromadb
 from dotenv import load_dotenv
@@ -12,7 +13,7 @@ from google import genai
 
 
 # ============================================================
-# LOAD ENVIRONMENT
+# PROJECT PATHS
 # ============================================================
 
 PROJECT_ROOT = (
@@ -22,6 +23,27 @@ PROJECT_ROOT = (
 )
 
 ENV_FILE = PROJECT_ROOT / ".env"
+
+VIDEO_RESULT_FILE = (
+    PROJECT_ROOT
+    / "backend"
+    / "runs"
+    / "sudarshana"
+    / "surveillance_result.json"
+)
+
+OUTPUT_FILE = (
+    PROJECT_ROOT
+    / "backend"
+    / "runs"
+    / "sudarshana"
+    / "ai_assessment.json"
+)
+
+
+# ============================================================
+# LOAD ENVIRONMENT
+# ============================================================
 
 load_dotenv(
     ENV_FILE
@@ -55,6 +77,167 @@ client = genai.Client(
 
 
 # ============================================================
+# LOAD SURVEILLANCE RESULTS
+# ============================================================
+
+if not VIDEO_RESULT_FILE.exists():
+
+    raise FileNotFoundError(
+        f"Surveillance result not found:\n"
+        f"{VIDEO_RESULT_FILE}\n\n"
+        "Run video_pipeline.py first."
+    )
+
+
+with open(
+    VIDEO_RESULT_FILE,
+    "r",
+    encoding="utf-8"
+) as file:
+
+    surveillance_data = json.load(
+        file
+    )
+
+
+# ============================================================
+# EXTRACT EVENT DATA
+# ============================================================
+
+tracks = surveillance_data.get(
+    "tracks",
+    []
+)
+
+
+total_tracks = surveillance_data.get(
+    "tracks_detected",
+    len(tracks)
+)
+
+
+frames_processed = surveillance_data.get(
+    "frames_processed",
+    0
+)
+
+
+# Default values
+
+event_object = "Unknown"
+
+event_confidence = 0.0
+
+event_anomaly = "UNKNOWN"
+
+event_risk = "UNKNOWN"
+
+event_track_id = "N/A"
+
+
+# Extract highest-risk track
+
+if tracks:
+
+    selected_track = max(
+
+        tracks,
+
+        key=lambda track: (
+            track.get(
+                "risk_score",
+                0
+            )
+        )
+    )
+
+
+    event_object = selected_track.get(
+        "category",
+        selected_track.get(
+            "class_name",
+            "Unknown"
+        )
+    )
+
+
+    event_confidence = selected_track.get(
+        "confidence",
+        0.0
+    )
+
+
+    event_anomaly = selected_track.get(
+        "anomaly",
+        "UNKNOWN"
+    )
+
+
+    event_risk = selected_track.get(
+        "risk_level",
+        selected_track.get(
+            "risk",
+            "UNKNOWN"
+        )
+    )
+
+
+    event_track_id = selected_track.get(
+        "track_id",
+        "N/A"
+    )
+
+
+# ============================================================
+# CREATE EVENT OBJECT
+# ============================================================
+
+event = {
+
+    "object": event_object,
+
+    "confidence": event_confidence,
+
+    "location": "Surveillance Area",
+
+    "anomaly": event_anomaly,
+
+    "risk": event_risk,
+
+    "track_id": event_track_id,
+
+    "total_tracks": total_tracks,
+
+    "frames_processed": frames_processed
+}
+
+
+# ============================================================
+# CREATE RAG QUERY
+# ============================================================
+
+query = f"""
+A surveillance system processed a video and
+identified the following event:
+
+Track ID: {event["track_id"]}
+Object: {event["object"]}
+Confidence: {event["confidence"]}
+Location: {event["location"]}
+Anomaly Level: {event["anomaly"]}
+Risk Level: {event["risk"]}
+
+Video Context:
+Total Tracks Detected: {event["total_tracks"]}
+Frames Processed: {event["frames_processed"]}
+
+What should the authorized operator review or do
+according to the available surveillance SOPs,
+anomaly guidelines, and restricted-zone guidelines?
+"""
+
+
+# ============================================================
 # VECTOR DATABASE
 # ============================================================
 
@@ -73,9 +256,10 @@ if not VECTOR_STORE.exists():
     )
 
 
-chroma_client = (
-    chromadb.PersistentClient(
-        path=str(VECTOR_STORE)
+chroma_client = chromadb.PersistentClient(
+
+    path=str(
+        VECTOR_STORE
     )
 )
 
@@ -127,43 +311,6 @@ collection = (
 
 
 # ============================================================
-# SURVEILLANCE EVENT
-# ============================================================
-
-event = {
-
-    "object": "Person",
-
-    "confidence": 0.841,
-
-    "location": "Restricted Zone",
-
-    "anomaly": "HIGH",
-
-    "risk": "HIGH"
-}
-
-
-# ============================================================
-# CREATE RAG QUERY
-# ============================================================
-
-query = f"""
-A surveillance system detected the following event:
-
-Object: {event["object"]}
-Confidence: {event["confidence"]}
-Location: {event["location"]}
-Anomaly Level: {event["anomaly"]}
-Risk Level: {event["risk"]}
-
-What should the authorized operator review or do
-according to the available surveillance SOPs and
-restricted-zone guidelines?
-"""
-
-
-# ============================================================
 # RETRIEVE RELEVANT SOPs
 # ============================================================
 
@@ -200,7 +347,7 @@ if not documents:
 
 
 # ============================================================
-# BUILD CONTEXT
+# BUILD RAG CONTEXT
 # ============================================================
 
 context_parts = []
@@ -212,7 +359,10 @@ for index, document in enumerate(
 
     source = "Unknown"
 
-    if index < len(metadatas):
+
+    if index < len(
+        metadatas
+    ):
 
         source = metadatas[
             index
@@ -291,6 +441,57 @@ response = client.models.generate_content(
 )
 
 
+ai_response = response.text
+
+
+# ============================================================
+# SAVE AI ASSESSMENT
+# ============================================================
+
+assessment_output = {
+
+    "system": "SUDARSHANA-AI",
+
+    "event": event,
+
+    "retrieved_sources": [
+
+        metadata.get(
+            "source",
+            "Unknown"
+        )
+
+        for metadata in metadatas
+    ],
+
+    "ai_assessment": ai_response
+}
+
+
+OUTPUT_FILE.parent.mkdir(
+
+    parents=True,
+
+    exist_ok=True
+)
+
+
+with open(
+    OUTPUT_FILE,
+    "w",
+    encoding="utf-8"
+) as file:
+
+    json.dump(
+
+        assessment_output,
+
+        file,
+
+        indent=4
+    )
+
+
 # ============================================================
 # DISPLAY
 # ============================================================
@@ -304,7 +505,7 @@ print(
 )
 
 print(
-    "        RAG + GENAI RESPONSE"
+    "        VIDEO + RAG + GENAI"
 )
 
 print("=" * 60)
@@ -312,18 +513,24 @@ print("=" * 60)
 print()
 
 print(
-    "EVENT:"
+    "VIDEO EVENT:"
 )
 
-print(
-    query
-)
+print()
+
+for key, value in event.items():
+
+    print(
+        f"{key}: {value}"
+    )
+
 
 print()
 
 print(
     "RETRIEVED SOURCES:"
 )
+
 
 for metadata in metadatas:
 
@@ -341,7 +548,7 @@ print()
 print("=" * 60)
 
 print(
-    "AI GENERATED RESPONSE"
+    "AI GENERATED ASSESSMENT"
 )
 
 print("=" * 60)
@@ -349,15 +556,23 @@ print("=" * 60)
 print()
 
 print(
-    response.text
+    ai_response
 )
+
+
+print()
+
+print(
+    f"Assessment JSON: {OUTPUT_FILE}"
+)
+
 
 print()
 
 print("=" * 60)
 
 print(
-    "        RAG GENERATION COMPLETE"
+    "        RAG PIPELINE COMPLETE"
 )
 
 print("=" * 60)
