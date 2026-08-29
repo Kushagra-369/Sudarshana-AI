@@ -1,0 +1,25 @@
+{
+    "system": "SUDARSHANA-AI",
+    "event": {
+        "object": "Person",
+        "confidence": 0.55,
+        "location": "Surveillance Area",
+        "anomaly": {
+            "score": 0.0,
+            "level": "LOW"
+        },
+        "risk": {
+            "score": 52.02,
+            "level": "MEDIUM"
+        },
+        "track_id": 1,
+        "total_tracks": 2,
+        "frames_processed": 0
+    },
+    "retrieved_sources": [
+        "surveillance_sop.md",
+        "restricted_zone_guidelines.md",
+        "anomaly_response.md"
+    ],
+    "ai_assessment": "Assessment:\nA Person (Track ID 1) was detected in the Surveillance Area with a confidence score of 0.55. The anomaly level is LOW (score: 0.0), indicating movement does not significantly deviate from the baseline. The event has a MEDIUM risk level (score: 52.02). This risk score alone does not prove hostile or malicious intent.\n\nRecommended Review:\nThe operator should review the event details including object category, detection confidence (0.55), tracking ID (1), location, anomaly level (LOW), and risk score (MEDIUM). The operator should verify the detection to rule out false positives caused by model uncertainty or environmental factors, and record the significant event details per documentation guidelines.\n\nRelevant SOP:\n- Surveillance Monitoring SOP (`surveillance_sop.md`)\n- Restricted Zone Monitoring Guidelines (`restricted_zone_guidelines.md`)\n- Anomaly Analysis Guidance (`anomaly_response.md`)\n\nHuman Verification:\nAutomated detections serve strictly as decision-support information. Human verification is required before making operational decisions or taking further action. The system does not autonomously determine intent or authorize response actions; final interpretation remains with the authorized human operator."
+}
