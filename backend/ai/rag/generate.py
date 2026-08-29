@@ -572,7 +572,7 @@ print()
 print("=" * 60)
 
 print(
-    "        RAG PIPELINE COMPLETE"
+    "RAG PIPELINE COMPLETE"
 )
 
 print("=" * 60)
