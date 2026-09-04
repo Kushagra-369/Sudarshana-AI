@@ -10,6 +10,8 @@ import { setupAdminTOTP, confirmAdminTOTP, } from "../services/admin_auth_servic
 import { requireAdmin } from "../middleware/admin_middleware";
 import { getBaseHeadRequests, approveBaseHead, rejectBaseHead, } from "../controller/admin_controller";
 import { createBaseProfile, getMyBase, updateMyBase, } from "../controller/base_controller";
+import { analyzeSituation } from "../controller/ai_controller";
+
 // user 
 router.post("/register", registerUser);
 router.post("/login", loginUser);
@@ -218,100 +220,25 @@ router.post(
   }
 );
 
-// router.post(
-//     "/admin/setup-totp",
-//     authenticateToken,requireAdmin,
-//     async (req : AuthRequest, res) => {
-//         try {
-//             const userId = req.userId;
-
-//             if (!userId) {
-//                 return res.status(401).json({
-//                     success: false,
-//                     message: "Unauthorized",
-//                 });
-//             }
-
-//             const result = await setupAdminTOTP(
-//                 userId
-//             );
-
-//             return res.status(200).json({
-//                 success: true,
-//                 message: "TOTP setup created",
-//                 data: result,
-//             });
-//         } catch (error) {
-//             console.error(
-//                 "Admin TOTP setup error:",
-//                 error
-//             );
-
-//             return res.status(400).json({
-//                 success: false,
-//                 message:
-//                     error instanceof Error
-//                         ? error.message
-//                         : "TOTP setup failed",
-//             });
-//         }
-//     }
-// );
+router.post("/situation", authenticateToken, analyzeSituation);
+router.get("/status", authenticateToken, async (req, res) => {
+  try {
+    // Fix: FastAPI port 8000 pe chal raha hai
+    const response = await fetch("http://localhost:8000/api/health", {
+      method: "GET",
+      signal: AbortSignal.timeout(2000),
+    });
+    
+    if (response.ok) {
+      res.json({ status: "connected", message: "AI service is operational" });
+    } else {
+      res.json({ status: "error", message: "AI service returned error" });
+    }
+  } catch (error) {
+    res.json({ status: "offline", message: "AI service is not available" });
+  }
+});
 
 
-// Confirm first TOTP code
-// router.post(
-//     "/admin/confirm-totp",
-//     authenticateToken,requireAdmin,
-//     async (req: AuthRequest, res) => {
-//         try {
-//             const userId = req.userId;
-//             const { otp } = req.body;
-
-//             if (!userId) {
-//                 return res.status(401).json({
-//                     success: false,
-//                     message: "Unauthorized",
-//                 });
-//             }
-
-//             if (!otp) {
-//                 return res.status(400).json({
-//                     success: false,
-//                     message: "OTP is required",
-//                 });
-//             }
-
-//             const valid = await confirmAdminTOTP(
-//                 userId,
-//                 otp
-//             );
-
-//             if (!valid) {
-//                 return res.status(401).json({
-//                     success: false,
-//                     message: "Invalid OTP",
-//                 });
-//             }
-
-//             return res.status(200).json({
-//                 success: true,
-//                 message:
-//                     "Admin TOTP enabled successfully",
-//             });
-//         } catch (error) {
-//             console.error(
-//                 "Admin TOTP confirmation error:",
-//                 error
-//             );
-
-//             return res.status(500).json({
-//                 success: false,
-//                 message:
-//                     "TOTP confirmation failed",
-//             });
-//         }
-//     }
-// );
 
 export default router;

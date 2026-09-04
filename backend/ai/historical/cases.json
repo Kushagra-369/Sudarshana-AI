@@ -1,0 +1,9 @@
+[
+    {
+        "case_id": "CASE-001",
+        "zone": "A",
+        "status": "MAJOR_DEVIATION",
+        "activity_level": null,
+        "description": "Previous abnormal activity"
+    }
+]

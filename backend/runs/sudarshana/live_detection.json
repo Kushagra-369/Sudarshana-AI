@@ -1,6 +1,6 @@
 {
     "system": "SUDARSHANA-AI",
-    "updated_at": "2026-08-28T19:11:58.955507",
+    "updated_at": "2026-09-04T17:51:05.232677",
     "no_object_timeout": 10,
     "cameras": {
         "cam1": {
@@ -20,7 +20,7 @@
             "camera": "cam2",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/people.mp4",
             "object_present": false,
-            "last_detection": "2026-08-28T19:11:58.948334",
+            "last_detection": "2026-09-04T17:51:05.228160",
             "seconds_since_detection": 0.0,
             "visible": false,
             "objects": [],

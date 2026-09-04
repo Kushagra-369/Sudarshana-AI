@@ -565,10 +565,7 @@ const Incidents: React.FC = () => {
     color: colors.textPrimary,
   };
 
-  const memberInfoStyle: React.CSSProperties = {
-    fontSize: "11px",
-    color: colors.textSecondary,
-  };
+
 
   const statusDotStyle = (status: string): React.CSSProperties => ({
     width: "8px",

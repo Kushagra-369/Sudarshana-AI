@@ -1,4 +1,4 @@
-// components/AI_Assistant.tsx
+// frontend/src/pages/AI_Assistant.tsx
 import React, { useState, useRef, useEffect } from "react";
 import {
   Send,
@@ -7,17 +7,20 @@ import {
   Sparkles,
   Lightbulb,
   Shield,
-
-  Cpu,
   Mic,
   Paperclip,
-  
   Copy,
   Check,
   ThumbsUp,
   ThumbsDown,
-
+  AlertTriangle,
+  RefreshCw,
+  Wifi,
+  WifiOff,
+  Volume2,
+  VolumeX,
 } from "lucide-react";
+import { analyzeSituation, checkAIStatus } from "../../api/ai";
 
 // ============================================================
 // TYPES
@@ -28,42 +31,24 @@ interface Message {
   content: string;
   timestamp: string;
   sources?: string[];
-  suggestions?: string[];
+  context?: any;
+  error?: boolean;
   isThinking?: boolean;
 }
 
 interface Suggestion {
   id: string;
   text: string;
-  category: "situation" | "threat" | "incident" | "analytics";
+  category: "situation" | "threat" | "incident" | "analytics" | "history";
 }
 
-// ============================================================
-// MOCK DATA
-// ============================================================
-const initialSuggestions: Suggestion[] = [
-  { id: "s1", text: "Why was Sector B flagged?", category: "situation" },
-  { id: "s2", text: "Summarize today's high-risk events", category: "threat" },
-  { id: "s3", text: "What caused the highest threat score?", category: "threat" },
-  { id: "s4", text: "Show recent suspicious activity", category: "situation" },
-  { id: "s5", text: "What are the most important active incidents?", category: "incident" },
-  { id: "s6", text: "Analyze threat patterns in Sector B", category: "analytics" },
-];
-
-// Mock responses for different queries
-const mockResponses: Record<string, string> = {
-  "why was sector b flagged": "Sector B was flagged due to multiple indicators:\n\n1. **Restricted Zone Entry** (+40 points): A vehicle (ID: VEH-004) entered a designated restricted zone at 14:32:18.\n\n2. **Unusual Timestamp** (+20 points): The entry occurred outside normal operational hours (14:32), which is flagged as suspicious.\n\n3. **Abnormal Movement Pattern** (+12 points): The vehicle showed erratic movement patterns, including sudden stops and direction changes.\n\n**Total Threat Score: 82/100 (CRITICAL)**\n\nThis combination of factors triggered an automatic alert. The incident is currently under human review.",
-  
-  "summarize today's high-risk events": "Today's high-risk events summary:\n\n**Critical Threats (Score 80+):**\n- **14:32** - Vehicle #04 entered restricted zone in Sector B (Score: 82)\n- **13:42** - Unauthorized vehicle at East Gate, Sector B (Score: 72)\n\n**High Priority Threats (Score 60-79):**\n- **14:28** - Person #12 showing unusual movement near Sector A checkpoint (Score: 67)\n\n**Key Observations:**\n- 8 total threats detected today\n- 2 critical, 3 high priority, 2 medium, 1 low\n- Sector B shows highest activity (5 threats)\n- 3 incidents currently require human review\n- Anomaly detection rate: 12 anomalies, 67% resolution rate\n\n**Recommendation:** Immediate review of critical threats in Sector B recommended.",
-  
-  "what caused the highest threat score": "The highest threat score (82/100) was caused by Vehicle #04 in Sector B with the following breakdown:\n\n**1. Restricted Zone Entry** (+40)\n- Vehicle entered a designated restricted zone\n- Zone marked as sensitive area\n- Unauthorized entry triggered primary alert\n\n**2. Unusual Timestamp** (+20)\n- Entry occurred at 14:32:18\n- Outside standard operational window (06:00-18:00)\n- Automated pattern matching flagged as suspicious\n\n**3. Abnormal Movement** (+12)\n- Erratic driving pattern detected\n- Multiple sudden stops\n- Direction changes inconsistent with normal traffic\n\n**4. Vehicle Type** (+10)\n- Suspicious vehicle classification\n- Previous incidents with similar vehicle type\n\n**TOTAL: 82/100 (CRITICAL)**\n\nThis threat is currently active and requires immediate human review.",
-  
-  "show recent suspicious activity": "Recent suspicious activity detected:\n\n**Last 30 Minutes:**\n1. **14:32** - Vehicle #04, Sector B\n   - Restricted zone entry\n   - Score: 82/100 (CRITICAL)\n   - Status: ACTIVE\n\n2. **14:28** - Person #12, Sector A\n   - Unusual movement pattern\n   - Score: 67/100 (HIGH)\n   - Status: UNDER REVIEW\n\n3. **14:18** - Vehicle #05, Sector B\n   - Unauthorized presence\n   - Score: 72/100 (HIGH)\n   - Status: ACTIVE\n\n**Last Hour:**\n4. **14:15** - Vehicle #03, Sector C\n   - Abnormal speed detected\n   - Score: 48/100 (MEDIUM)\n   - Status: ACTIVE\n\n**Pattern Analysis:**\n- Concentration in Sector B (3 events)\n- All events involve vehicles (3/4)\n- Most events occurred between 14:15-14:32\n- 2 events require human review\n\n**Alert:** Critical threat currently active in Sector B.",
-  
-  "what are the most important active incidents": "Active incidents requiring attention:\n\n**1. INC-001 | CRITICAL**\n- Vehicle #04 in Sector B\n- Score: 82/100\n- Status: ACTIVE\n- Requires immediate review\n- Restricted zone entry + unusual timing\n- Assigned to: Captain Singh\n\n**2. INC-005 | HIGH**\n- Vehicle #05 at East Gate\n- Score: 72/100\n- Status: ACTIVE\n- Unauthorized presence detected\n- Assigned to: Captain Singh\n\n**3. INC-003 | MEDIUM**\n- Vehicle #03 in Sector C\n- Score: 48/100\n- Status: ACTIVE\n- Abnormal speed pattern\n- Unassigned\n\n**Summary:**\n- 3 active incidents\n- 1 requires immediate review\n- 2 high-risk incidents in Sector B\n- Captain Singh assigned to 2 incidents\n\n**Recommendation:**\n- Immediate review of INC-001\n- Consider reassigning INC-003\n- Increase patrol in Sector B",
-  
-  "analyze threat patterns in sector b": "Sector B Threat Analysis:\n\n**Overview:**\n- Total Threats: 5\n- Critical: 2\n- High: 2\n- Medium: 1\n- Active: 4\n\n**Patterns:**\n1. **Time Pattern:**\n   - Peak activity: 14:00-15:00 (3 events)\n   - Suspicious timing violations (2 events)\n\n2. **Location Pattern:**\n   - Main Road: 2 events\n   - East Gate: 2 events\n   - Restricted Zone: 1 event\n\n3. **Object Pattern:**\n   - Vehicles: 4 events\n   - Persons: 1 event\n   - High confidence detections: 85%+\n\n4. **Threat Score Distribution:**\n   - 80+ : 2 events\n   - 60-79 : 2 events\n   - 40-59 : 1 event\n\n**Risk Assessment:**\n- HIGH risk level\n- Increasing activity trend (+12%)\n- Restricted zone violations concerning\n- Multiple active threats require review\n\n**Recommendations:**\n- Increase surveillance in Sector B\n- Review restricted zone access protocols\n- Assign additional patrol units\n- Prioritize INC-001 review",
-};
+// Speech Recognition types
+declare global {
+  interface Window {
+    SpeechRecognition: any;
+    webkitSpeechRecognition: any;
+  }
+}
 
 // ============================================================
 // COMPONENT
@@ -72,11 +57,26 @@ const AI_Assistant: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isThinking, setIsThinking] = useState(false);
-  const [suggestions] = useState<Suggestion[]>(initialSuggestions);
-  const [suggestionCategory, setSuggestionCategory] = useState<string>("ALL");
+  const [aiStatus, setAiStatus] = useState<"connected" | "offline" | "error" | "checking">("checking");
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [isListening, setIsListening] = useState(false);
+  const [isSpeaking, setIsSpeaking] = useState(false);
+  const [speakingMessageId, setSpeakingMessageId] = useState<string | null>(null);
+  const [recognition, setRecognition] = useState<any>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const suggestions: Suggestion[] = [
+    { id: "s1", text: "Analyze current situation", category: "situation" },
+    { id: "s2", text: "What is abnormal right now?", category: "situation" },
+    { id: "s3", text: "Show current priority", category: "situation" },
+    { id: "s4", text: "Show suspicious activity", category: "threat" },
+    { id: "s5", text: "What is the highest-risk area?", category: "threat" },
+    { id: "s6", text: "Analyze zone activity", category: "analytics" },
+    { id: "s7", text: "Compare Sector A and Sector B", category: "analytics" },
+    { id: "s8", text: "Show pattern deviations", category: "analytics" },
+    { id: "s9", text: "Find similar historical cases", category: "history" },
+  ];
 
   // ---- COLORS ----
   const colors = {
@@ -95,6 +95,389 @@ const AI_Assistant: React.FC = () => {
     accentPurple: "#8A6EB0",
   };
 
+  // ---- Initialize Speech Recognition ----
+  useEffect(() => {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (SpeechRecognition) {
+      const recognitionInstance = new SpeechRecognition();
+      recognitionInstance.continuous = false;
+      recognitionInstance.interimResults = true;
+      recognitionInstance.lang = "en-US";
+
+      recognitionInstance.onresult = (event: any) => {
+        let finalTranscript = "";
+        let interimTranscript = "";
+
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            finalTranscript += transcript;
+          } else {
+            interimTranscript += transcript;
+          }
+        }
+
+        if (finalTranscript) {
+          setInputValue(finalTranscript);
+          setIsListening(false);
+        } else if (interimTranscript) {
+          setInputValue(interimTranscript);
+        }
+      };
+
+      recognitionInstance.onerror = (event: any) => {
+        console.error("Speech recognition error:", event.error);
+        setIsListening(false);
+        if (event.error === "not-allowed") {
+          // User denied permission
+        }
+      };
+
+      recognitionInstance.onend = () => {
+        setIsListening(false);
+      };
+
+      setRecognition(recognitionInstance);
+    }
+
+    return () => {
+      if (recognition) {
+        recognition.abort();
+      }
+    };
+  }, []);
+
+  // ---- Check AI Status on mount ----
+  useEffect(() => {
+    const checkStatus = async () => {
+      try {
+        const status = await checkAIStatus();
+        setAiStatus(status.status);
+      } catch {
+        setAiStatus("offline");
+      }
+    };
+    checkStatus();
+
+    const interval = setInterval(checkStatus, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // ---- KEYFRAMES ----
+  useEffect(() => {
+    const style = document.createElement("style");
+
+    style.textContent = `
+    @keyframes thinking-dot {
+      0%, 60%, 100% {
+        transform: translateY(0);
+        opacity: 0.4;
+      }
+      30% {
+        transform: translateY(-8px);
+        opacity: 1;
+      }
+    }
+
+    @keyframes spin {
+      from {
+        transform: rotate(0deg);
+      }
+      to {
+        transform: rotate(360deg);
+      }
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 1;
+      }
+      50% {
+        opacity: 0.5;
+      }
+    }
+
+    .animate-spin {
+      animation: spin 1s linear infinite;
+    }
+
+    .animate-pulse {
+      animation: pulse 1.5s ease-in-out infinite;
+    }
+  `;
+
+    document.head.appendChild(style);
+
+    return () => {
+      if (style.parentNode) {
+        style.parentNode.removeChild(style);
+      }
+    };
+  }, []);
+
+  // ---- SCROLL TO BOTTOM ----
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // ---- Handle Send ----
+  const handleSend = async () => {
+    const trimmedInput = inputValue.trim();
+    if (!trimmedInput || isThinking || aiStatus === "offline") return;
+
+    const userMessage: Message = {
+      id: `msg-${Date.now()}`,
+      role: "user",
+      content: trimmedInput,
+      timestamp: new Date().toLocaleTimeString(),
+    };
+
+    setMessages((prev) => [...prev, userMessage]);
+    setInputValue("");
+    setIsThinking(true);
+
+    try {
+      const response = await analyzeSituation(trimmedInput);
+
+      if (!response.success) {
+        throw new Error(response.error || "Analysis failed");
+      }
+
+      const aiMessage: Message = {
+        id: `msg-${Date.now() + 1}`,
+        role: "assistant",
+        content: response.response,
+        timestamp: new Date().toLocaleTimeString(),
+        sources: response.sources || ["AI Analysis"],
+        context: response.context,
+      };
+
+      setMessages((prev) => [...prev, aiMessage]);
+
+    } catch (error: any) {
+      const errorMessage: Message = {
+        id: `msg-${Date.now() + 1}`,
+        role: "assistant",
+        content: error.message || "I encountered an error while analyzing the situation. Please try again.",
+        timestamp: new Date().toLocaleTimeString(),
+        error: true,
+      };
+      setMessages((prev) => [...prev, errorMessage]);
+    } finally {
+      setIsThinking(false);
+    }
+  };
+
+  // ---- Handle Key Down ----
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  // ---- Handle Suggestion ----
+  const handleSuggestion = (text: string) => {
+    setInputValue(text);
+    inputRef.current?.focus();
+  };
+
+  // ---- Handle Copy ----
+  const handleCopy = (content: string, id: string) => {
+    navigator.clipboard.writeText(content);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  // ---- Handle Voice Input ----
+  const toggleListening = () => {
+    if (!recognition) {
+      alert("Speech recognition is not supported in this browser.");
+      return;
+    }
+
+    if (isListening) {
+      recognition.abort();
+      setIsListening(false);
+      return;
+    }
+
+    try {
+      recognition.start();
+      setIsListening(true);
+    } catch (error) {
+      console.error("Failed to start speech recognition:", error);
+      setIsListening(false);
+    }
+  };
+
+  // ---- Handle Text-to-Speech ----
+  const toggleSpeech = (content: string, messageId: string) => {
+    if (!("speechSynthesis" in window)) {
+      return;
+    }
+
+    if (isSpeaking && speakingMessageId === messageId) {
+      window.speechSynthesis.cancel();
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
+      return;
+    }
+
+    // Clean markdown for speech
+    const cleanContent = content
+      .replace(/\*\*/g, "")
+      .replace(/\*/g, "")
+      .replace(/•/g, "")
+      .replace(/_/g, "")
+      .replace(/\[/g, "")
+      .replace(/\]/g, "")
+      .replace(/\(/g, "")
+      .replace(/\)/g, "");
+
+    const utterance = new SpeechSynthesisUtterance(cleanContent);
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+
+    utterance.onend = () => {
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
+    };
+
+    utterance.onerror = () => {
+      setIsSpeaking(false);
+      setSpeakingMessageId(null);
+    };
+
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+    setIsSpeaking(true);
+    setSpeakingMessageId(messageId);
+  };
+
+  // ---- Render Context ----
+  const renderContext = (context: any) => {
+    if (!context) return null;
+
+    const sections = [];
+
+    // Priority
+    if (context.priority) {
+      sections.push(
+        <div key="priority" style={{ marginBottom: "0.5rem" }}>
+          <span style={{ fontWeight: 600, color: colors.textSecondary }}>Priority: </span>
+          <span style={{
+            color: context.priority === "HIGH" ? colors.accentRed :
+              context.priority === "MEDIUM" ? colors.accentAmber :
+                colors.accentGreen,
+            fontWeight: 700,
+          }}>
+            {context.priority}
+          </span>
+        </div>
+      );
+    }
+
+    // Pattern Analysis
+    if (context.pattern_analysis) {
+      const pa = context.pattern_analysis;
+      sections.push(
+        <div key="pattern" style={{ marginBottom: "0.5rem" }}>
+          <div style={{ fontWeight: 600, color: colors.textSecondary, marginBottom: "0.25rem" }}>Pattern Analysis</div>
+          <div style={{ fontSize: "11px", color: colors.textSecondary, lineHeight: 1.6 }}>
+            {pa.status && <div>Status: <span style={{ color: colors.textPrimary }}>{pa.status}</span></div>}
+            {pa.baseline !== undefined && <div>Baseline: <span style={{ color: colors.textPrimary }}>{pa.baseline}</span></div>}
+            {pa.current !== undefined && <div>Current: <span style={{ color: colors.textPrimary }}>{pa.current}</span></div>}
+            {pa.deviation !== undefined && <div>Deviation: <span style={{ color: colors.textPrimary }}>{pa.deviation}</span></div>}
+            {pa.percentage !== undefined && <div>Change: <span style={{ color: colors.textPrimary }}>{pa.percentage.toFixed(1)}%</span></div>}
+          </div>
+        </div>
+      );
+    }
+
+    // Correlation
+    if (context.correlation_analysis) {
+      const ca = context.correlation_analysis;
+      sections.push(
+        <div key="correlation" style={{ marginBottom: "0.5rem" }}>
+          <div style={{ fontWeight: 600, color: colors.textSecondary, marginBottom: "0.25rem" }}>Correlation</div>
+          <div style={{ fontSize: "11px", color: colors.textSecondary, lineHeight: 1.6 }}>
+            {ca.zone_correlation && (
+              <div>
+                Zone: {ca.zone_correlation.zone_a} → {ca.zone_correlation.zone_b}
+                <span style={{ color: colors.textPrimary }}> (Ratio: {ca.zone_correlation.ratio}x)</span>
+                <div>Status: <span style={{ color: colors.textPrimary }}>{ca.zone_correlation.status}</span></div>
+              </div>
+            )}
+            {ca.event_correlation && (
+              <div>
+                Events: {ca.event_correlation.event_count}
+                <span style={{ color: colors.textPrimary }}> in {ca.event_correlation.busiest_zone}</span>
+                <div>Status: <span style={{ color: colors.textPrimary }}>{ca.event_correlation.status}</span></div>
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    // Hypotheses
+    if (context.hypotheses && context.hypotheses.length > 0) {
+      sections.push(
+        <div key="hypotheses" style={{ marginBottom: "0.5rem" }}>
+          <div style={{ fontWeight: 600, color: colors.textSecondary, marginBottom: "0.25rem" }}>Hypotheses</div>
+          {context.hypotheses.slice(0, 3).map((h: any, idx: number) => (
+            <div key={idx} style={{ fontSize: "11px", color: colors.textSecondary, lineHeight: 1.6, paddingLeft: "0.5rem" }}>
+              • {h.message}
+              {h.confidence && <span style={{ color: colors.textPrimary }}> ({h.confidence.toFixed(0)}% confidence)</span>}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // Recommendations
+    if (context.recommendations && context.recommendations.length > 0) {
+      sections.push(
+        <div key="recommendations" style={{ marginBottom: "0.5rem" }}>
+          <div style={{ fontWeight: 600, color: colors.textSecondary, marginBottom: "0.25rem" }}>Recommendations</div>
+          {context.recommendations.slice(0, 3).map((r: string, idx: number) => (
+            <div key={idx} style={{ fontSize: "11px", color: colors.textSecondary, lineHeight: 1.6, paddingLeft: "0.5rem" }}>
+              • {r}
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    // Historical Matches
+    if (context.historical_matches && context.historical_matches.length > 0) {
+      sections.push(
+        <div key="historical" style={{ marginBottom: "0.5rem" }}>
+          <div style={{ fontWeight: 600, color: colors.textSecondary, marginBottom: "0.25rem" }}>Historical Matches</div>
+          {context.historical_matches.slice(0, 2).map((h: any, idx: number) => (
+            <div key={idx} style={{ fontSize: "11px", color: colors.textSecondary, lineHeight: 1.6, paddingLeft: "0.5rem" }}>
+              • {h.case_id} <span style={{ color: colors.textPrimary }}>({h.score}% similarity)</span>
+            </div>
+          ))}
+        </div>
+      );
+    }
+
+    if (sections.length === 0) return null;
+
+    return (
+      <div style={{
+        marginTop: "0.75rem",
+        paddingTop: "0.75rem",
+        borderTop: `1px solid ${colors.border}`,
+      }}>
+        {sections}
+      </div>
+    );
+  };
+
   // ---- STYLES ----
   const containerStyle: React.CSSProperties = {
     background: colors.bg,
@@ -106,7 +489,6 @@ const AI_Assistant: React.FC = () => {
     flexDirection: "column",
   };
 
-  // ---- HEADER ----
   const headerStyle: React.CSSProperties = {
     display: "flex",
     justifyContent: "space-between",
@@ -114,6 +496,8 @@ const AI_Assistant: React.FC = () => {
     marginBottom: "1.5rem",
     borderBottom: `1px solid ${colors.border}`,
     paddingBottom: "0.75rem",
+    flexWrap: "wrap",
+    gap: "0.5rem",
   };
 
   const headerLeftStyle: React.CSSProperties = {
@@ -134,24 +518,24 @@ const AI_Assistant: React.FC = () => {
     letterSpacing: "0.5px",
   };
 
-  const headerRightStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.75rem",
+  const statusBadgeStyle = (status: string): React.CSSProperties => {
+    let color = colors.accentGreen;
+    let bg = `${colors.accentGreen}15`;
+    if (status === "offline") { color = colors.accentRed; bg = `${colors.accentRed}15`; }
+    else if (status === "error") { color = colors.accentAmber; bg = `${colors.accentAmber}15`; }
+    return {
+      display: "flex",
+      alignItems: "center",
+      gap: "0.4rem",
+      fontSize: "10px",
+      color,
+      padding: "0.25rem 0.6rem",
+      border: `1px solid ${color}33`,
+      borderRadius: "4px",
+      background: bg,
+    };
   };
 
-  const statusBadgeStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: "0.4rem",
-    fontSize: "10px",
-    color: colors.accentGreen,
-    padding: "0.25rem 0.6rem",
-    border: `1px solid ${colors.accentGreen}33`,
-    borderRadius: "4px",
-  };
-
-  // ---- MAIN LAYOUT ----
   const mainLayoutStyle: React.CSSProperties = {
     display: "grid",
     gridTemplateColumns: "1fr 280px",
@@ -160,7 +544,6 @@ const AI_Assistant: React.FC = () => {
     minHeight: "500px",
   };
 
-  // ---- CHAT AREA ----
   const chatAreaStyle: React.CSSProperties = {
     display: "flex",
     flexDirection: "column",
@@ -170,7 +553,6 @@ const AI_Assistant: React.FC = () => {
     overflow: "hidden",
   };
 
-  // ---- MESSAGES ----
   const messagesContainerStyle: React.CSSProperties = {
     flex: 1,
     overflowY: "auto",
@@ -198,15 +580,15 @@ const AI_Assistant: React.FC = () => {
     flexShrink: 0,
   });
 
-  const bubbleStyle = (role: "user" | "assistant"): React.CSSProperties => ({
+  const bubbleStyle = (role: "user" | "assistant", error?: boolean): React.CSSProperties => ({
     maxWidth: "75%",
     padding: "0.6rem 0.9rem",
     borderRadius: "8px",
-    background: role === "user" ? colors.accentBlue : colors.surfaceLighter,
-    border: role === "user" ? `1px solid ${colors.accentBlue}44` : `1px solid ${colors.border}`,
+    background: error ? `${colors.accentRed}15` : role === "user" ? colors.accentBlue : colors.surfaceLighter,
+    border: error ? `1px solid ${colors.accentRed}` : role === "user" ? `1px solid ${colors.accentBlue}44` : `1px solid ${colors.border}`,
     fontSize: "13px",
     lineHeight: 1.6,
-    color: colors.textPrimary,
+    color: error ? colors.accentRed : colors.textPrimary,
     whiteSpace: "pre-wrap",
   });
 
@@ -216,7 +598,6 @@ const AI_Assistant: React.FC = () => {
     marginTop: "0.25rem",
   };
 
-  // ---- INPUT AREA ----
   const inputAreaStyle: React.CSSProperties = {
     display: "flex",
     alignItems: "center",
@@ -254,7 +635,6 @@ const AI_Assistant: React.FC = () => {
     transition: "background 0.15s",
   });
 
-  // ---- SIDEBAR ----
   const sidebarStyle: React.CSSProperties = {
     background: colors.surface,
     border: `1px solid ${colors.border}`,
@@ -288,7 +668,6 @@ const AI_Assistant: React.FC = () => {
     lineHeight: 1.3,
   };
 
-  // ---- THINKING ANIMATION ----
   const thinkingDotsStyle: React.CSSProperties = {
     display: "flex",
     gap: "4px",
@@ -304,110 +683,103 @@ const AI_Assistant: React.FC = () => {
     animationDelay: delay,
   });
 
-  // ---- KEYFRAMES ----
-  useEffect(() => {
-    const style = document.createElement("style");
-    style.textContent = `
-      @keyframes thinking-dot {
-        0%, 60%, 100% { transform: translateY(0); opacity: 0.4; }
-        30% { transform: translateY(-8px); opacity: 1; }
-      }
-    `;
-    document.head.appendChild(style);
-    return () => {document.head.removeChild(style)};
-  }, []);
-
-  // ---- SCROLL TO BOTTOM ----
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
-
-  // ---- HANDLE SEND ----
-  const handleSend = async () => {
-    if (!inputValue.trim() || isThinking) return;
-
-    const userMessage: Message = {
-      id: `msg-${Date.now()}`,
-      role: "user",
-      content: inputValue.trim(),
-      timestamp: new Date().toLocaleTimeString(),
-    };
-
-    setMessages((prev) => [...prev, userMessage]);
-    setInputValue("");
-    setIsThinking(true);
-
-    // Simulate AI thinking
-    setTimeout(() => {
-      const query = inputValue.trim().toLowerCase();
-      let response = "I understand you're asking about the operational situation. Could you please provide more specific details about what you'd like to know?";
-
-      // Find matching response
-      for (const [key, value] of Object.entries(mockResponses)) {
-        if (query.includes(key)) {
-          response = value;
-          break;
-        }
-      }
-
-      const aiMessage: Message = {
-        id: `msg-${Date.now() + 1}`,
-        role: "assistant",
-        content: response,
-        timestamp: new Date().toLocaleTimeString(),
-        sources: ["AI Analysis", "Threat Intelligence", "Incident Database"],
-        suggestions: [
-          "Show more details about Sector B",
-          "What about Sector A?",
-          "Update threat assessment",
-        ],
-      };
-
-      setMessages((prev) => [...prev, aiMessage]);
-      setIsThinking(false);
-    }, 1500 + Math.random() * 1000);
+  const offlineBannerStyle: React.CSSProperties = {
+    padding: "0.75rem 1rem",
+    background: `${colors.accentRed}15`,
+    border: `1px solid ${colors.accentRed}`,
+    borderRadius: "4px",
+    marginBottom: "1rem",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: "0.5rem",
+    flexWrap: "wrap",
   };
 
-  // ---- HANDLE SUGGESTION ----
-  const handleSuggestion = (text: string) => {
-    setInputValue(text);
-    inputRef.current?.focus();
+  const listeningIndicatorStyle: React.CSSProperties = {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: "0.4rem",
+    fontSize: "11px",
+    color: colors.accentRed,
+    fontWeight: 600,
+    padding: "0.2rem 0.6rem",
+    borderRadius: "4px",
+    background: `${colors.accentRed}15`,
+    border: `1px solid ${colors.accentRed}`,
   };
 
-  // ---- HANDLE COPY ----
-  const handleCopy = (content: string, id: string) => {
-    navigator.clipboard.writeText(content);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 2000);
-  };
-
-  // ---- GET SUGGESTION CATEGORIES ----
-  const filteredSuggestions = suggestionCategory === "ALL"
-    ? suggestions
-    : suggestions.filter(s => s.category === suggestionCategory);
+  // ============================================================
+  // RENDER
+  // ============================================================
 
   return (
     <div style={containerStyle}>
       {/* HEADER */}
       <div style={headerStyle}>
         <div style={headerLeftStyle}>
-          <div style={headerTitleStyle}>AI Assistant</div>
+          <div style={headerTitleStyle}>AI Situation Assistant</div>
           <div style={headerSubtitleStyle}>
             <Bot size={14} style={{ display: "inline", marginRight: "6px" }} />
             AI-powered situation analysis & decision support
           </div>
         </div>
-        <div style={headerRightStyle}>
-          <div style={statusBadgeStyle}>
-            <Cpu size={12} />
-            <span>AI Active</span>
+        <div style={{ display: "flex", alignItems: "center", gap: "0.75rem", flexWrap: "wrap" }}>
+          <div style={statusBadgeStyle(aiStatus)}>
+            {aiStatus === "connected" ? (
+              <Wifi size={12} />
+            ) : aiStatus === "checking" ? (
+              <RefreshCw size={12} className="animate-spin" />
+            ) : (
+              <WifiOff size={12} />
+            )}
+            <span>
+              {aiStatus === "connected" ? "AI ACTIVE" :
+                aiStatus === "checking" ? "CHECKING..." :
+                  aiStatus === "offline" ? "OFFLINE" :
+                    "ERROR"}
+            </span>
           </div>
-          <div style={statusBadgeStyle}>
+          <div style={{ ...statusBadgeStyle("connected"), color: colors.accentPurple, borderColor: `${colors.accentPurple}33`, background: `${colors.accentPurple}15` }}>
             <Sparkles size={12} />
             <span>v2.1</span>
           </div>
         </div>
       </div>
+
+      {/* OFFLINE BANNER */}
+      {aiStatus === "offline" && (
+        <div style={offlineBannerStyle}>
+          <div style={{ display: "flex", alignItems: "center", gap: "0.5rem", color: colors.accentRed }}>
+            <AlertTriangle size={18} />
+            <span style={{ fontWeight: 600 }}>AI Backend Offline</span>
+            <span style={{ fontWeight: 400, fontSize: "12px" }}>Unable to connect to situation analysis service</span>
+          </div>
+          <button
+            style={{
+              background: colors.accentGreen,
+              border: "none",
+              borderRadius: "4px",
+              padding: "0.2rem 0.75rem",
+              color: colors.textPrimary,
+              fontSize: "11px",
+              cursor: "pointer",
+              fontFamily: "inherit",
+            }}
+            onClick={async () => {
+              setAiStatus("checking");
+              try {
+                const status = await checkAIStatus();
+                setAiStatus(status.status);
+              } catch {
+                setAiStatus("offline");
+              }
+            }}
+          >
+            Retry
+          </button>
+        </div>
+      )}
 
       {/* MAIN LAYOUT */}
       <div style={mainLayoutStyle}>
@@ -431,6 +803,11 @@ const AI_Assistant: React.FC = () => {
                 <div style={{ fontSize: "12px", textAlign: "center", maxWidth: "300px" }}>
                   Ask me about threats, incidents, or the current operational situation.
                 </div>
+                {aiStatus === "connected" && (
+                  <div style={{ fontSize: "10px", color: colors.accentGreen, marginTop: "0.25rem" }}>
+                    ● Ready
+                  </div>
+                )}
               </div>
             ) : (
               messages.map((message) => (
@@ -441,9 +818,9 @@ const AI_Assistant: React.FC = () => {
                     </div>
                   )}
                   <div style={{ maxWidth: message.role === "user" ? "75%" : "85%" }}>
-                    <div style={bubbleStyle(message.role)}>
+                    <div style={bubbleStyle(message.role, message.error)}>
                       {message.content}
-                      {message.sources && (
+                      {message.sources && !message.error && (
                         <div style={{
                           marginTop: "0.5rem",
                           paddingTop: "0.5rem",
@@ -452,6 +829,7 @@ const AI_Assistant: React.FC = () => {
                           color: colors.textSecondary,
                           display: "flex",
                           gap: "0.5rem",
+                          flexWrap: "wrap",
                         }}>
                           <span>Sources:</span>
                           {message.sources.map((source, idx) => (
@@ -461,16 +839,27 @@ const AI_Assistant: React.FC = () => {
                           ))}
                         </div>
                       )}
+                      {message.context && renderContext(message.context)}
                     </div>
                     <div style={timestampStyle}>
                       {message.timestamp}
-                      {message.role === "assistant" && (
+                      {message.role === "assistant" && !message.error && (
                         <span style={{ marginLeft: "0.5rem", display: "inline-flex", gap: "0.3rem" }}>
                           <button
                             style={{ background: "transparent", border: "none", color: colors.textSecondary, cursor: "pointer", padding: "0" }}
                             onClick={() => handleCopy(message.content, message.id)}
                           >
                             {copiedId === message.id ? <Check size={12} /> : <Copy size={12} />}
+                          </button>
+                          <button
+                            style={{ background: "transparent", border: "none", color: colors.textSecondary, cursor: "pointer", padding: "0" }}
+                            onClick={() => toggleSpeech(message.content, message.id)}
+                          >
+                            {isSpeaking && speakingMessageId === message.id ? (
+                              <VolumeX size={12} />
+                            ) : (
+                              <Volume2 size={12} />
+                            )}
                           </button>
                           <button style={{ background: "transparent", border: "none", color: colors.textSecondary, cursor: "pointer", padding: "0" }}>
                             <ThumbsUp size={12} />
@@ -509,24 +898,67 @@ const AI_Assistant: React.FC = () => {
 
           {/* INPUT AREA */}
           <div style={inputAreaStyle}>
-            <button style={{ background: "transparent", border: "none", color: colors.textSecondary, cursor: "pointer", padding: "4px" }}>
+            <button
+              style={{
+                background: "transparent",
+                border: "none",
+                color: colors.textSecondary,
+                cursor: "not-allowed",
+                padding: "4px",
+                opacity: 0.4,
+              }}
+              disabled
+              title="Attachment not supported"
+            >
               <Paperclip size={18} />
             </button>
-            <button style={{ background: "transparent", border: "none", color: colors.textSecondary, cursor: "pointer", padding: "4px" }}>
+            <button
+              style={{
+                background: "transparent",
+                border: "none",
+                color: isListening ? colors.accentRed : colors.textSecondary,
+                cursor: recognition ? "pointer" : "not-allowed",
+                padding: "4px",
+                opacity: recognition ? 1 : 0.4,
+                position: "relative",
+              }}
+              onClick={toggleListening}
+              disabled={!recognition}
+              title={recognition ? (isListening ? "Stop listening" : "Start voice input") : "Voice input not supported"}
+            >
               <Mic size={18} />
+              {isListening && (
+                <span style={{
+                  position: "absolute",
+                  top: "-2px",
+                  right: "-2px",
+                  width: "8px",
+                  height: "8px",
+                  borderRadius: "50%",
+                  background: colors.accentRed,
+                  animation: "pulse 1s ease-in-out infinite",
+                }} />
+              )}
             </button>
             <input
               ref={inputRef}
               style={inputStyle}
-              placeholder="Ask about the situation..."
+              placeholder={aiStatus === "offline" ? "AI offline - please reconnect" : "Ask about the situation..."}
               value={inputValue}
               onChange={(e) => setInputValue(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              onKeyDown={handleKeyDown}
+              disabled={aiStatus === "offline"}
             />
+            {isListening && (
+              <span style={listeningIndicatorStyle}>
+                <span style={{ animation: "pulse 1s ease-in-out infinite" }}>●</span>
+                Listening...
+              </span>
+            )}
             <button
-              style={sendButtonStyle(!inputValue.trim() || isThinking)}
+              style={sendButtonStyle(!inputValue.trim() || isThinking || aiStatus === "offline")}
               onClick={handleSend}
-              disabled={!inputValue.trim() || isThinking}
+              disabled={!inputValue.trim() || isThinking || aiStatus === "offline"}
             >
               <Send size={16} />
               Send
@@ -537,24 +969,23 @@ const AI_Assistant: React.FC = () => {
         {/* SIDEBAR */}
         <div style={sidebarStyle}>
           <div>
-            <div style={sidebarTitleStyle}>Suggested Questions</div>
+            <div style={sidebarTitleStyle}>Quick Actions</div>
             <div style={{ display: "flex", gap: "0.3rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
-              {["ALL", "situation", "threat", "incident", "analytics"].map((cat) => (
+              {["ALL", "situation", "threat", "analytics", "history"].map((cat) => (
                 <button
                   key={cat}
                   style={{
-                    background: suggestionCategory === cat ? colors.accentGreen : colors.surfaceLighter,
-                    border: `1px solid ${suggestionCategory === cat ? colors.accentGreen : colors.border}`,
+                    background: colors.surfaceLighter,
+                    border: `1px solid ${colors.border}`,
                     borderRadius: "3px",
                     padding: "0.15rem 0.5rem",
                     fontSize: "8px",
-                    color: suggestionCategory === cat ? colors.textPrimary : colors.textSecondary,
+                    color: colors.textSecondary,
                     cursor: "pointer",
                     fontFamily: "inherit",
                     textTransform: "uppercase",
                     letterSpacing: "0.3px",
                   }}
-                  onClick={() => setSuggestionCategory(cat)}
                 >
                   {cat}
                 </button>
@@ -563,7 +994,7 @@ const AI_Assistant: React.FC = () => {
           </div>
 
           <div style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", gap: "0.4rem" }}>
-            {filteredSuggestions.map((suggestion) => (
+            {suggestions.map((suggestion) => (
               <div
                 key={suggestion.id}
                 style={suggestionItemStyle}
@@ -591,7 +1022,7 @@ const AI_Assistant: React.FC = () => {
           }}>
             <div style={{ fontSize: "9px", color: colors.textSecondary, display: "flex", alignItems: "center", gap: "0.3rem" }}>
               <Shield size={12} color={colors.accentGreen} />
-              <span>AI decisions require human review</span>
+              <span>AI recommendations require human review</span>
             </div>
           </div>
         </div>
