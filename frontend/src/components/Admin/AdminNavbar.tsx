@@ -10,6 +10,8 @@ import {
   X,
   ChevronDown
 } from "lucide-react";
+import { APIURL } from "../../GlobalAPIURL";
+
 
 interface AdminNavbarProps {
   adminName?: string;
@@ -26,7 +28,7 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({ adminName = "Admin" }) => {
   useEffect(() => {
     const fetchCurrentAdmin = async () => {
       const token =
-        sessionStorage.getItem("authToken");
+        localStorage.getItem("authToken");
 
       if (!token) {
         return;
@@ -34,7 +36,7 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({ adminName = "Admin" }) => {
 
       try {
         const response = await fetch(
-          "http://localhost:4321/me",
+          `${APIURL}/me`,
           {
             method: "GET",
             headers: {
@@ -57,7 +59,7 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({ adminName = "Admin" }) => {
             data.user.name
           );
 
-          sessionStorage.setItem(
+          localStorage.setItem(
             "authUser",
             JSON.stringify(data.user)
           );
@@ -286,9 +288,9 @@ const AdminNavbar: React.FC<AdminNavbarProps> = ({ adminName = "Admin" }) => {
   });
 
   const handleLogout = () => {
-    sessionStorage.removeItem("authToken");
-    sessionStorage.removeItem("authUser");
-    sessionStorage.removeItem("adminPendingAuth");
+    localStorage.removeItem("authToken");
+    localStorage.removeItem("authUser");
+    localStorage.removeItem("adminPendingAuth");
     navigate("/signin");
   };
 

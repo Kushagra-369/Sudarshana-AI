@@ -64,7 +64,7 @@ const AdminDashboard: React.FC = () => {
   const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const token = sessionStorage.getItem("authToken");
+      const token = localStorage.getItem("authToken");
       
       if (!token) {
         navigate("/signin");
