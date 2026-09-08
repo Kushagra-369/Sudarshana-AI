@@ -123,12 +123,19 @@ const Threats: React.FC = () => {
         }
       );
 
-      if (response.ok) {
-        setDetectionActive(true);
-        console.log("▶️ Detection started");
+      const data = await response.json().catch(() => null);
+
+      console.log(`▶️ START ${backendKey}:`, response.status, data);
+
+      if (!response.ok) {
+        console.error(`❌ START FAILED ${backendKey}:`, data);
+        return;
       }
+
+      setDetectionActive(true);
+      console.log(`▶️ Detection started: ${backendKey}`);
     } catch (err) {
-      console.error("❌ Failed to start detection:", err);
+      console.error(`❌ Failed to start detection ${backendKey}:`, err);
     }
   };
 
@@ -141,12 +148,19 @@ const Threats: React.FC = () => {
         }
       );
 
-      if (response.ok) {
-        setDetectionActive(false);
-        console.log("⏹️ Detection stopped");
+      const data = await response.json().catch(() => null);
+
+      console.log(`⏹️ STOP ${backendKey}:`, response.status, data);
+
+      if (!response.ok) {
+        console.error(`❌ STOP FAILED ${backendKey}:`, data);
+        return;
       }
+
+      setDetectionActive(false);
+      console.log(`⏹️ Detection stopped: ${backendKey}`);
     } catch (err) {
-      console.error("❌ Failed to stop detection:", err);
+      console.error(`❌ Failed to stop detection ${backendKey}:`, err);
     }
   };
 
