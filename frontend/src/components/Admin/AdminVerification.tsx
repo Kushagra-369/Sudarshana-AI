@@ -32,7 +32,7 @@ const AdminVerification: React.FC = () => {
         }
 
         const pendingAuth =
-            sessionStorage.getItem("adminPendingAuth");
+            localStorage.getItem("adminPendingAuth");
 
         if (!pendingAuth) {
             setError(
@@ -95,18 +95,18 @@ const AdminVerification: React.FC = () => {
             }
 
             // Remove temporary authentication
-            sessionStorage.removeItem(
+            localStorage.removeItem(
                 "adminPendingAuth"
             );
 
             // Store FINAL admin token
-            sessionStorage.setItem(
+            localStorage.setItem(
                 "authToken",
                 data.token
             );
 
             // Store admin user
-            sessionStorage.setItem(
+            localStorage.setItem(
                 "authUser",
                 JSON.stringify(
                     data.user || parsedAuth.user
@@ -132,7 +132,7 @@ const AdminVerification: React.FC = () => {
     };
 
     const handleBackToLogin = () => {
-        sessionStorage.removeItem("adminPendingAuth");
+        localStorage.removeItem("adminPendingAuth");
         navigate("/signin");
     };
 
