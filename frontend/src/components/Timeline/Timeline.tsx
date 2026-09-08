@@ -186,7 +186,7 @@ const mockEvents: TimelineEvent[] = [
 // COMPONENT
 // ============================================================
 const Timeline: React.FC = () => {
-  const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
+  // const [selectedEvent, setSelectedEvent] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState<string>("ALL");
   const [filterSeverity, setFilterSeverity] = useState<string>("ALL");

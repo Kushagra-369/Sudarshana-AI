@@ -40,15 +40,7 @@ const OTPVerification: React.FC = () => {
             "pendingOTPEmail"
         );
 
-    const role =
-        state?.role ||
-        sessionStorage.getItem(
-            "pendingOTPRole"
-        ) as
-        | "ADMIN"
-        | "BASE_HEAD"
-        | "USER"
-        | null;
+  
 
     const [otp, setOtp] =
         useState("");

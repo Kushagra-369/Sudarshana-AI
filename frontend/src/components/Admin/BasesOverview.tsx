@@ -16,7 +16,7 @@ import {
     User,
     Mail,
 } from "lucide-react";
-import { APIURL } from "../../GlobalAPIURL";
+// import { APIURL } from "../../GlobalAPIURL";
 
 interface Base {
     id: string;

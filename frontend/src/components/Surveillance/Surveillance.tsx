@@ -728,18 +728,18 @@ const Surveillance: React.FC = () => {
     };
   };
 
-  const cameraThreatIndicator = (threatLevel?: string): React.CSSProperties => {
-    const color = threatLevel ? threatColors[threatLevel as keyof typeof threatColors] : colors.textSecondary;
-    return {
-      width: "8px",
-      height: "8px",
-      borderRadius: "50%",
-      background: color,
-      display: "inline-block",
-      marginLeft: "0.25rem",
-      boxShadow: threatLevel === "CRITICAL" ? `0 0 12px ${color}` : "none",
-    };
-  };
+  // const cameraThreatIndicator = (threatLevel?: string): React.CSSProperties => {
+  //   const color = threatLevel ? threatColors[threatLevel as keyof typeof threatColors] : colors.textSecondary;
+  //   return {
+  //     width: "8px",
+  //     height: "8px",
+  //     borderRadius: "50%",
+  //     background: color,
+  //     display: "inline-block",
+  //     marginLeft: "0.25rem",
+  //     boxShadow: threatLevel === "CRITICAL" ? `0 0 12px ${color}` : "none",
+  //   };
+  // };
 
   // ---- FILTERS ----
   const filterBarStyle: React.CSSProperties = {

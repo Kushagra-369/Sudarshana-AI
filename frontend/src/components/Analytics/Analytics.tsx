@@ -216,12 +216,24 @@ const Analytics: React.FC = () => {
     textTransform: "uppercase",
   };
 
-  const statTrendStyle = (trend: "up" | "down" | "stable", percentage: number): React.CSSProperties => {
-    const color = trend === "up" ? colors.accentRed : trend === "down" ? colors.accentGreen : colors.textSecondary;
+  const statTrendStyle = (
+    trend: "up" | "down" | "stable",
+    percentage: number
+  ): React.CSSProperties => {
+    const color =
+      trend === "up"
+        ? colors.accentRed
+        : trend === "down"
+          ? colors.accentGreen
+          : colors.textSecondary;
+
+    const opacity = Math.min(Math.max(Math.abs(percentage) / 100, 0.5), 1);
+
     return {
       fontSize: "10px",
       fontWeight: 600,
       color,
+      opacity,
       display: "flex",
       alignItems: "center",
       gap: "0.25rem",
@@ -342,8 +354,8 @@ const Analytics: React.FC = () => {
           <div style={statValueStyle}>{data.threats.total}</div>
           <div style={statLabelStyle}>Total Threats</div>
           <div style={statTrendStyle(data.threats.trend, data.threats.percentage)}>
-            {data.threats.trend === "up" ? <ArrowUp size={12} /> : 
-             data.threats.trend === "down" ? <ArrowDown size={12} /> : <Minus size={12} />}
+            {data.threats.trend === "up" ? <ArrowUp size={12} /> :
+              data.threats.trend === "down" ? <ArrowDown size={12} /> : <Minus size={12} />}
             {data.threats.percentage}%
           </div>
         </div>
@@ -351,8 +363,8 @@ const Analytics: React.FC = () => {
           <div style={statValueStyle}>{data.anomalies.total}</div>
           <div style={statLabelStyle}>Anomalies</div>
           <div style={statTrendStyle(data.anomalies.trend, data.anomalies.percentage)}>
-            {data.anomalies.trend === "up" ? <ArrowUp size={12} /> : 
-             data.anomalies.trend === "down" ? <ArrowDown size={12} /> : <Minus size={12} />}
+            {data.anomalies.trend === "up" ? <ArrowUp size={12} /> :
+              data.anomalies.trend === "down" ? <ArrowDown size={12} /> : <Minus size={12} />}
             {data.anomalies.percentage}%
           </div>
         </div>
@@ -360,8 +372,8 @@ const Analytics: React.FC = () => {
           <div style={statValueStyle}>{data.incidents.total}</div>
           <div style={statLabelStyle}>Incidents</div>
           <div style={statTrendStyle(data.incidents.trend, data.incidents.percentage)}>
-            {data.incidents.trend === "up" ? <ArrowUp size={12} /> : 
-             data.incidents.trend === "down" ? <ArrowDown size={12} /> : <Minus size={12} />}
+            {data.incidents.trend === "up" ? <ArrowUp size={12} /> :
+              data.incidents.trend === "down" ? <ArrowDown size={12} /> : <Minus size={12} />}
             {data.incidents.percentage}%
           </div>
         </div>

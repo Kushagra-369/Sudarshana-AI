@@ -23,7 +23,6 @@ export interface UserNavbarProps {
 const UserNavbar: React.FC<UserNavbarProps> = ({
   activePage = "home",
   onNavigate,
-  notificationCount = 0,
   userName = "Guest",
 }) => {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);

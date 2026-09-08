@@ -30,7 +30,7 @@ interface User {
 const WaitingForApproval: React.FC = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(false);
+  // const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
   const [checkingStatus, setCheckingStatus] = useState(false);
@@ -332,7 +332,7 @@ const WaitingForApproval: React.FC = () => {
 
   const isRejected = user?.status === "REJECTED";
   const isSuspended = user?.status === "SUSPENDED";
-  const isPending = user?.status === "PENDING";
+  // const isPending = user?.status === "PENDING";
 
   return (
     <div style={containerStyle}>

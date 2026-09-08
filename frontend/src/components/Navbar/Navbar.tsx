@@ -60,7 +60,6 @@ const mockNotifications = [
 // COMPONENT
 // ====================================================================
 const Navbar: React.FC<NavbarProps> = ({
-  activePage = "command",
   onNavigate,
   notificationCount = 5,
   operatorName = "",

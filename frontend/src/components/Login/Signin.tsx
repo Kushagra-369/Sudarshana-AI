@@ -19,10 +19,6 @@ import {
 
 declare global {
     interface Window {
-        AndroidGoogleAuth?: {
-            startGoogleSignIn: () => void;
-        };
-
         onNativeGoogleSuccess?: (token: string) => void;
         onNativeGoogleError?: (message: string) => void;
     }
@@ -65,7 +61,7 @@ const Signin: React.FC = () => {
     const [email, setEmail] = useState("");
     const [password, setPassword] = useState("");
 
-    const [isRegisterMode, setIsRegisterMode] =
+    const [isRegisterMode, ] =
         useState(false);
 
     const [showPassword, setShowPassword] = useState(false);
@@ -94,24 +90,7 @@ const Signin: React.FC = () => {
         setError("");
     };
 
-    const handleModeChange = (
-        register: boolean
-    ) => {
-        setIsRegisterMode(register);
-        setError("");
-
-        setName("");
-        setEmail("");
-        setPassword("");
-
-        // ADMIN cannot register
-        if (
-            register &&
-            selectedRole === "ADMIN"
-        ) {
-            setSelectedRole("USER");
-        }
-    };
+   
 
     // =====================================================
     // EMAIL + PASSWORD LOGIN
@@ -338,13 +317,7 @@ const Signin: React.FC = () => {
                 )
             ) {
 
-                const userSession = {
-                    ...data.user,
-
-                    // If Base Head is temporarily using USER access,
-                    // frontend treats this session as USER.
-                    accessRole: "USER",
-                };
+              
 
                 localStorage.setItem(
                     "authUser",
@@ -1519,19 +1492,7 @@ const Signin: React.FC = () => {
 // MEDIA QUERY HOOK
 // ============================================================
 
-const useMediaQuery = (query: string) => {
-    const [matches, setMatches] = useState(false);
-    useEffect(() => {
-        const media = window.matchMedia(query);
-        if (media.matches !== matches) {
-            setMatches(media.matches);
-        }
-        const listener = () => setMatches(media.matches);
-        media.addEventListener("change", listener);
-        return () => media.removeEventListener("change", listener);
-    }, [matches, query]);
-    return matches;
-};
+
 
 /* =========================================================
    STYLES
