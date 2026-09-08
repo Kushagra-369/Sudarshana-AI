@@ -59,6 +59,10 @@ const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
 
                 const data = await response.json();
 
+                console.log("🔍 PROTECTED ROUTE /me STATUS:", response.status);
+                console.log("🔍 PROTECTED ROUTE /me RESPONSE:", data);
+                console.log("🔍 PROTECTED ROUTE TOKEN EXISTS:", Boolean(token));
+
                 // =====================================================
                 // TOKEN REJECTED BY BACKEND
                 // =====================================================
