@@ -12,6 +12,7 @@ import {
   Activity,
   AlertTriangle,
 } from "lucide-react";
+import { PYTHON_API_URL } from "../../GlobalAPIURL";
 
 // ============================================================
 // TYPES
@@ -59,7 +60,7 @@ interface Violation {
   status: "ACTIVE" | "RESOLVED";
 }
 
-const cam3Video  = "/videos/cam3.mp4";
+const cam3Video = "/videos/cam3.mp4";
 const cam4Video = "/videos/cam4.mp4";
 
 // ============================================================
@@ -113,25 +114,33 @@ const Threats: React.FC = () => {
   ];
 
   // ---- Start/stop detection ----
-  const startDetection = async () => {
+  const startDetection = async (backendKey: string) => {
     try {
-      const response = await fetch("http://localhost:8000/api/detection/start", {
-        method: "POST",
-      });
+      const response = await fetch(
+        `${PYTHON_API_URL}/api/detection/start/${backendKey}`,
+        {
+          method: "POST",
+        }
+      );
+
       if (response.ok) {
         setDetectionActive(true);
-        console.log("✅ Detection started");
+        console.log("▶️ Detection started");
       }
     } catch (err) {
       console.error("❌ Failed to start detection:", err);
     }
   };
 
-  const stopDetection = async () => {
+  const stopDetection = async (backendKey: string) => {
     try {
-      const response = await fetch("http://localhost:8000/api/detection/stop", {
-        method: "POST",
-      });
+      const response = await fetch(
+        `${PYTHON_API_URL}/api/detection/stop/${backendKey}`,
+        {
+          method: "POST",
+        }
+      );
+
       if (response.ok) {
         setDetectionActive(false);
         console.log("⏹️ Detection stopped");
@@ -142,10 +151,20 @@ const Threats: React.FC = () => {
   };
 
   // ---- Auto-start detection on mount ----
+  // ---- Auto-start detection on mount ----
   useEffect(() => {
-    startDetection();
+    const startAllDetections = async () => {
+      for (const cam of restrictedCameras) {
+        await startDetection(cam.backendKey);
+      }
+    };
+
+    startAllDetections();
+
     return () => {
-      stopDetection();
+      restrictedCameras.forEach((cam) => {
+        stopDetection(cam.backendKey);
+      });
     };
   }, []);
 
@@ -156,7 +175,7 @@ const Threats: React.FC = () => {
 
     const fetchLiveData = async () => {
       try {
-        const response = await fetch("http://localhost:8000/api/live");
+        const response = await fetch(`${PYTHON_API_URL}/api/live`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data: LiveDetectionResponse = await response.json();
         if (mounted) {
@@ -202,11 +221,11 @@ const Threats: React.FC = () => {
 
     restrictedCameras.forEach((cam) => {
       const liveCam = liveData.cameras[cam.backendKey];
-      
+
       // 🔍 DEBUG
       console.log(`🔍 [${cam.id}] Checking backend key: ${cam.backendKey}`);
       console.log(`🔍 [${cam.id}] Live cam data:`, liveCam);
-      
+
       if (!liveCam?.objects || liveCam.objects.length === 0) {
         console.log(`🔍 [${cam.id}] No objects found`);
         return;
@@ -639,11 +658,15 @@ const Threats: React.FC = () => {
               fontWeight: 600,
               fontFamily: "inherit",
             }}
-            onClick={() => {
+            onClick={async () => {
               if (detectionActive) {
-                stopDetection();
+                for (const cam of restrictedCameras) {
+                  await stopDetection(cam.backendKey);
+                }
               } else {
-                startDetection();
+                for (const cam of restrictedCameras) {
+                  await startDetection(cam.backendKey);
+                }
               }
             }}
           >
@@ -677,13 +700,13 @@ const Threats: React.FC = () => {
         {restrictedCameras.map((cam) => {
           const liveCam = liveData?.cameras?.[cam.backendKey];
           const isVisible = liveCam?.visible || false;
-          
+
           // Filter only Person and Vehicle from backend
           const allObjects = liveCam?.objects || [];
           const objects = allObjects.filter(
             (obj) => obj.category === "Person" || obj.category === "Vehicle"
           );
-          
+
           const fps = liveCam?.fps || cam.fps;
           const hasObjects = objects.length > 0;
           const hasIntrusion = hasObjects && objects.some((obj) => {
@@ -709,14 +732,14 @@ const Threats: React.FC = () => {
                 borderColor: hasIntrusion
                   ? colors.accentRed
                   : hasObjects
-                  ? colors.accentAmber
-                  : colors.borderLight,
+                    ? colors.accentAmber
+                    : colors.borderLight,
                 boxShadow: hasIntrusion ? `0 0 30px ${colors.accentRed}44` : "none",
                 gridColumn: isFullscreen ? "1 / -1" : "auto",
               }}
             >
               <video
-                ref={(el) => {(videoRefs.current[cam.id] = el)}}
+                ref={(el) => { (videoRefs.current[cam.id] = el) }}
                 src={cam.videoSrc}
                 style={feedVideoStyle}
                 autoPlay
@@ -879,16 +902,16 @@ const Threats: React.FC = () => {
                           color: hasIntrusion
                             ? colors.accentRed
                             : hasObjects
-                            ? colors.accentAmber
-                            : colors.accentGreen,
+                              ? colors.accentAmber
+                              : colors.accentGreen,
                           fontWeight: 600,
                         }}
                       >
                         {hasIntrusion
                           ? "⚠ INTRUSION"
                           : hasObjects
-                          ? "DETECTING"
-                          : "CLEAR"}
+                            ? "DETECTING"
+                            : "CLEAR"}
                       </span>
                     </span>
                   </div>

@@ -21,7 +21,7 @@ import {
   Volume2,
   VolumeX,
 } from "lucide-react";
-
+import { PYTHON_API_URL } from "../../GlobalAPIURL";
 // ============================================================
 // TYPES
 // ============================================================
@@ -153,7 +153,7 @@ const Surveillance: React.FC = () => {
       }));
 
       const response = await fetch(
-        `http://localhost:8000/api/detection/start/${backendKey}`,
+        `${PYTHON_API_URL}/api/detection/start/${backendKey}`,
         { method: "POST" }
       );
 
@@ -188,7 +188,7 @@ const Surveillance: React.FC = () => {
       }));
 
       const response = await fetch(
-        `http://localhost:8000/api/detection/stop/${backendKey}`,
+        `${PYTHON_API_URL}/api/detection/stop/${backendKey}`,
         { method: "POST" }
       );
 
@@ -278,7 +278,7 @@ const Surveillance: React.FC = () => {
 
     const fetchLiveDetection = async () => {
       try {
-        const response = await fetch("http://localhost:8000/api/live");
+        const response = await fetch(`${PYTHON_API_URL}/api/live`);
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
         const data: LiveDetectionResponse = await response.json();
         if (mounted) {
@@ -333,8 +333,8 @@ const Surveillance: React.FC = () => {
         obj.category === "Vehicle"
           ? "Vehicle"
           : obj.category === "Person"
-          ? "Person"
-          : "Other",
+            ? "Person"
+            : "Other",
       className: obj.class,
       confidence: Math.round(obj.confidence * 100),
       trackId: `${selectedCamera}-${index + 1}`,
@@ -850,8 +850,8 @@ const Surveillance: React.FC = () => {
               color: loadingLive
                 ? colors.accentAmber
                 : liveError
-                ? colors.accentRed
-                : colors.accentGreen,
+                  ? colors.accentRed
+                  : colors.accentGreen,
               marginLeft: "0.75rem",
               fontWeight: 600,
             }}
@@ -860,8 +860,8 @@ const Surveillance: React.FC = () => {
             {loadingLive
               ? "CONNECTING"
               : liveError
-              ? "OFFLINE"
-              : "LIVE DATA"}
+                ? "OFFLINE"
+                : "LIVE DATA"}
           </span>
           <div style={cameraSelectorStyle}>
             <Radio
@@ -870,8 +870,8 @@ const Surveillance: React.FC = () => {
                 selectedCam?.status === "ACTIVE"
                   ? colors.accentGreen
                   : selectedCam?.status === "RECORDING"
-                  ? colors.accentAmber
-                  : colors.accentRed
+                    ? colors.accentAmber
+                    : colors.accentRed
               }
             />
             <span>{selectedCamera}</span>
@@ -1005,8 +1005,8 @@ const Surveillance: React.FC = () => {
                         {cam.status === "ACTIVE"
                           ? "LIVE"
                           : cam.status === "RECORDING"
-                          ? "RECORDING"
-                          : "OFFLINE"}
+                            ? "RECORDING"
+                            : "OFFLINE"}
                       </span>
                     </div>
                   </div>
@@ -1113,10 +1113,10 @@ const Surveillance: React.FC = () => {
                           obj.threat === "CRITICAL"
                             ? colors.accentRed
                             : obj.threat === "HIGH"
-                            ? colors.accentOrange
-                            : obj.threat === "MEDIUM"
-                            ? colors.accentAmber
-                            : colors.accentGreen,
+                              ? colors.accentOrange
+                              : obj.threat === "MEDIUM"
+                                ? colors.accentAmber
+                                : colors.accentGreen,
                       }}
                     >
                       {obj.confidence}%
@@ -1236,12 +1236,12 @@ const Surveillance: React.FC = () => {
                           color: hasObjects
                             ? colors.accentRed
                             : !isDetectionRunning
-                            ? colors.textSecondary
-                            : cam.status === "ACTIVE"
-                            ? colors.accentGreen
-                            : cam.status === "RECORDING"
-                            ? colors.accentAmber
-                            : colors.accentRed,
+                              ? colors.textSecondary
+                              : cam.status === "ACTIVE"
+                                ? colors.accentGreen
+                                : cam.status === "RECORDING"
+                                  ? colors.accentAmber
+                                  : colors.accentRed,
                         }}
                       >
                         {hasObjects ? "DETECTING" : !isDetectionRunning ? "PAUSED" : cam.status}
@@ -1254,8 +1254,8 @@ const Surveillance: React.FC = () => {
                           background: hasObjects
                             ? colors.accentRed
                             : !isDetectionRunning
-                            ? colors.textSecondary
-                            : colors.accentGreen,
+                              ? colors.textSecondary
+                              : colors.accentGreen,
                           display: "inline-block",
                           boxShadow: hasObjects ? `0 0 12px ${colors.accentRed}` : "none",
                         }}
