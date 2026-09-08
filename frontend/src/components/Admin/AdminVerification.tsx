@@ -78,6 +78,9 @@ const AdminVerification: React.FC = () => {
 
             const data = await response.json();
 
+            console.log("🔐 TOTP VERIFY STATUS:", response.status);
+            console.log("🔐 TOTP VERIFY RESPONSE:", data);
+
             if (!response.ok) {
                 setError(
                     data.message ||
@@ -86,32 +89,49 @@ const AdminVerification: React.FC = () => {
                 return;
             }
 
-            // Backend must return final admin JWT
             if (!data.token) {
+                console.error(
+                    "❌ Backend did not return final admin token:",
+                    data
+                );
+
                 setError(
                     "Authentication completed but no admin token was returned."
                 );
+
                 return;
             }
 
-            // Remove temporary authentication
-            localStorage.removeItem(
-                "adminPendingAuth"
+            console.log(
+                "✅ FINAL ADMIN TOKEN RECEIVED"
             );
 
-            // Store FINAL admin token
+            // Remove temporary authentication
+            localStorage.removeItem("adminPendingAuth");
+
             localStorage.setItem(
                 "authToken",
                 data.token
             );
 
-            // Store admin user
             localStorage.setItem(
                 "authUser",
                 JSON.stringify(
                     data.user || parsedAuth.user
                 )
             );
+
+            console.log(
+                "✅ AUTH TOKEN SAVED:",
+                localStorage.getItem("authToken")
+            );
+
+            console.log(
+                "✅ AUTH USER SAVED:",
+                localStorage.getItem("authUser")
+            );
+
+            navigate("/admin");
 
             // Admin dashboard
             navigate("/admin");
