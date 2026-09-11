@@ -69,7 +69,7 @@ export const analyzeSituation = async (
     throw new Error("Authentication required");
   }
 
-  const response = await fetch(`${APIURL}/api/situation`, {
+  const response = await fetch(`${APIURL}/situation`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

@@ -118,6 +118,86 @@ def health():
         "timestamp": datetime.now().isoformat()
     }
 
+
+# ============================================================
+# AI SITUATION ANALYSIS
+# ============================================================
+
+@app.post("/api/situation")
+async def analyze_situation(data: dict):
+    try:
+        query = data.get("query", "")
+        pattern_data = data.get("patternData")
+        correlation_data = data.get("correlationData")
+        historical_cases = data.get("historicalCases", [])
+
+        # At least some situation information should be provided
+        if not query and not pattern_data and not correlation_data:
+            raise HTTPException(
+                status_code=400,
+                detail="Query or situation data required"
+            )
+
+        # Import Situation Engine
+        from ai.situation_engine.engine import SituationEngine
+
+        engine = SituationEngine()
+
+        # SituationEngine currently works with:
+        # pattern_data, correlation_data, historical_cases
+        context = engine.analyze(
+            pattern_data=pattern_data,
+            correlation_data=correlation_data,
+            historical_cases=historical_cases
+        )
+
+        # Generate a simple assistant response from the
+        # decision-support result produced by SituationEngine
+        priority = context.get("priority", "LOW")
+        hypotheses = context.get("hypotheses", [])
+        recommendations = context.get("recommendations", [])
+
+        if priority == "HIGH":
+            response_text = (
+                "High-priority situation detected. "
+                "Review the identified hypotheses and recommendations immediately."
+            )
+        elif priority == "MEDIUM":
+            response_text = (
+                "Moderate-priority situation detected. "
+                "The system has identified activity requiring further review."
+            )
+        else:
+            response_text = (
+                "Situation analysis completed. "
+                "No high-priority condition was identified."
+            )
+
+        return {
+            "success": True,
+            "response": response_text,
+            "context": context,
+            "sources": [
+                "Pattern-of-Life Analysis",
+                "Correlation Analysis",
+                "Historical Matching",
+                "Decision Support"
+            ]
+        }
+
+    except HTTPException:
+        raise
+
+    except Exception as error:
+        print("❌ Situation analysis error:", error)
+
+        import traceback
+        traceback.print_exc()
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Situation analysis failed: {str(error)}"
+        )
 # ============================================================
 # SYSTEM STATUS
 # ============================================================
