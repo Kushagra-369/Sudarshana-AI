@@ -1,5 +1,5 @@
 // frontend/src/api/ai.ts
-import { APIURL } from "../GlobalAPIURL";
+import { APIURL, PYTHON_API_URL } from "../GlobalAPIURL";
 
 export interface SituationContext {
   pattern_analysis?: {
@@ -67,7 +67,7 @@ export const analyzeSituation = async (
     throw new Error("Authentication required");
   }
 
-  const response = await fetch(`${APIURL}/situation`, {
+  const response = await fetch(`${PYTHON_API_URL}/api/situation`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

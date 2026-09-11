@@ -1,6 +1,6 @@
 {
     "system": "SUDARSHANA-AI",
-    "updated_at": "2026-09-04T17:51:05.232677",
+    "updated_at": "2026-09-11T11:22:29.183110",
     "no_object_timeout": 10,
     "cameras": {
         "cam1": {
@@ -11,22 +11,22 @@
             "seconds_since_detection": null,
             "visible": false,
             "objects": [],
-            "frame": 1,
+            "frame": 79,
             "fps": 26.698092993357616,
-            "video_time": 0.04,
+            "video_time": 2.96,
             "status": "ENDED"
         },
         "cam2": {
             "camera": "cam2",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/people.mp4",
             "object_present": false,
-            "last_detection": "2026-09-04T17:51:05.228160",
-            "seconds_since_detection": 0.0,
+            "last_detection": "2026-09-11T11:22:20.917208",
+            "seconds_since_detection": 8.26,
             "visible": false,
             "objects": [],
-            "frame": 1,
+            "frame": 486,
             "fps": 25.379915400281998,
-            "video_time": 0.04,
+            "video_time": 19.15,
             "status": "ENDED"
         },
         "cam3": {
@@ -37,10 +37,10 @@
             "seconds_since_detection": null,
             "visible": false,
             "objects": [],
-            "frame": 1,
-            "fps": 27.73188576823224,
-            "video_time": 0.04,
-            "status": "ENDED"
+            "frame": 0,
+            "fps": 0,
+            "video_time": 0,
+            "status": "IDLE"
         },
         "cam4": {
             "camera": "cam4",
@@ -50,10 +50,10 @@
             "seconds_since_detection": null,
             "visible": false,
             "objects": [],
-            "frame": 1,
-            "fps": 25.704389394154227,
-            "video_time": 0.04,
-            "status": "ENDED"
+            "frame": 0,
+            "fps": 0,
+            "video_time": 0,
+            "status": "IDLE"
         }
     }
 }
