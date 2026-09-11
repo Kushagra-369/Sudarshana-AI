@@ -61,6 +61,24 @@ state_lock = threading.Lock()
 camera_threads = {}
 camera_running = {}
 
+# ============================================================
+# SHARED YOLO MODEL
+# ============================================================
+
+yolo_model = None
+yolo_lock = threading.Lock()
+
+def get_yolo_model():
+    global yolo_model
+
+    with yolo_lock:
+        if yolo_model is None:
+            print(f"🧠 Loading YOLO model: {MODEL_PATH}")
+            yolo_model = YOLO(str(MODEL_PATH))
+            print("🧠 YOLO model loaded successfully")
+
+    return yolo_model
+
 for camera_name, video_path in CAMERAS.items():
     camera_state[camera_name] = {
         "camera": camera_name,
@@ -132,7 +150,7 @@ def process_camera(camera_name, video_path):
     print(f"[{camera_name}] 🎯 Only detecting: Person (0), Vehicle (2,3,5,7)")
     print(f"[{camera_name}] 🎯 Confidence threshold: {CONFIDENCE_THRESHOLD}")
 
-    model = YOLO(str(MODEL_PATH))
+    model = get_yolo_model()
     frame_number = 0
     last_detection_time = None
     detection_count = 0
@@ -161,12 +179,13 @@ def process_camera(camera_name, video_path):
         # ========================================================
         # YOLO DETECTION - Fixed
         # ========================================================
-        results = model(
-            frame,
-            conf=CONFIDENCE_THRESHOLD,
-            imgsz=640,  # Faster processing
-            verbose=False
-        )
+        with yolo_lock:
+            results = model(
+                frame,
+                conf=CONFIDENCE_THRESHOLD,
+                imgsz=640,
+                verbose=False
+            )
 
         result = results[0]
         detected_objects = []

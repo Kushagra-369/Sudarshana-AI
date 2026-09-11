@@ -1,27 +1,27 @@
 {
     "system": "SUDARSHANA-AI",
-    "updated_at": "2026-09-11T11:22:29.183110",
+    "updated_at": "2026-09-11T16:48:43.533501",
     "no_object_timeout": 10,
     "cameras": {
         "cam1": {
             "camera": "cam1",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/cars.mp4",
             "object_present": false,
-            "last_detection": null,
-            "seconds_since_detection": null,
-            "visible": false,
+            "last_detection": "2026-09-11T16:48:42.961239",
+            "seconds_since_detection": 0.57,
+            "visible": true,
             "objects": [],
-            "frame": 79,
+            "frame": 506,
             "fps": 26.698092993357616,
-            "video_time": 2.96,
-            "status": "ENDED"
+            "video_time": 18.95,
+            "status": "LIVE"
         },
         "cam2": {
             "camera": "cam2",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/people.mp4",
             "object_present": false,
-            "last_detection": "2026-09-11T11:22:20.917208",
-            "seconds_since_detection": 8.26,
+            "last_detection": "2026-09-11T16:48:01.440407",
+            "seconds_since_detection": 40.14,
             "visible": false,
             "objects": [],
             "frame": 486,
@@ -33,27 +33,27 @@
             "camera": "cam3",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/cam3.mp4",
             "object_present": false,
-            "last_detection": null,
-            "seconds_since_detection": null,
+            "last_detection": "2026-09-11T16:48:04.611744",
+            "seconds_since_detection": 2.16,
             "visible": false,
             "objects": [],
-            "frame": 0,
-            "fps": 0,
-            "video_time": 0,
-            "status": "IDLE"
+            "frame": 236,
+            "fps": 27.73188576823224,
+            "video_time": 8.51,
+            "status": "ENDED"
         },
         "cam4": {
             "camera": "cam4",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/cam4.mp4",
             "object_present": false,
-            "last_detection": null,
-            "seconds_since_detection": null,
+            "last_detection": "2026-09-11T16:48:06.818271",
+            "seconds_since_detection": 0.0,
             "visible": false,
             "objects": [],
-            "frame": 0,
-            "fps": 0,
-            "video_time": 0,
-            "status": "IDLE"
+            "frame": 236,
+            "fps": 25.704389394154227,
+            "video_time": 9.18,
+            "status": "ENDED"
         }
     }
 }
