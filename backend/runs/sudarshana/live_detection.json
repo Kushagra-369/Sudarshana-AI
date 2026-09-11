@@ -1,0 +1,59 @@
+{
+    "system": "SUDARSHANA-AI",
+    "updated_at": "2026-09-11T11:22:29.183110",
+    "no_object_timeout": 10,
+    "cameras": {
+        "cam1": {
+            "camera": "cam1",
+            "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/cars.mp4",
+            "object_present": false,
+            "last_detection": null,
+            "seconds_since_detection": null,
+            "visible": false,
+            "objects": [],
+            "frame": 79,
+            "fps": 26.698092993357616,
+            "video_time": 2.96,
+            "status": "ENDED"
+        },
+        "cam2": {
+            "camera": "cam2",
+            "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/people.mp4",
+            "object_present": false,
+            "last_detection": "2026-09-11T11:22:20.917208",
+            "seconds_since_detection": 8.26,
+            "visible": false,
+            "objects": [],
+            "frame": 486,
+            "fps": 25.379915400281998,
+            "video_time": 19.15,
+            "status": "ENDED"
+        },
+        "cam3": {
+            "camera": "cam3",
+            "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/cam3.mp4",
+            "object_present": false,
+            "last_detection": null,
+            "seconds_since_detection": null,
+            "visible": false,
+            "objects": [],
+            "frame": 0,
+            "fps": 0,
+            "video_time": 0,
+            "status": "IDLE"
+        },
+        "cam4": {
+            "camera": "cam4",
+            "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/cam4.mp4",
+            "object_present": false,
+            "last_detection": null,
+            "seconds_since_detection": null,
+            "visible": false,
+            "objects": [],
+            "frame": 0,
+            "fps": 0,
+            "video_time": 0,
+            "status": "IDLE"
+        }
+    }
+}

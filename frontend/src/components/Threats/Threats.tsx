@@ -125,7 +125,6 @@ const Threats: React.FC = () => {
 
       const data = await response.json().catch(() => null);
 
-      console.log(`▶️ START ${backendKey}:`, response.status, data);
 
       if (!response.ok) {
         console.error(`❌ START FAILED ${backendKey}:`, data);
@@ -133,7 +132,6 @@ const Threats: React.FC = () => {
       }
 
       setDetectionActive(true);
-      console.log(`▶️ Detection started: ${backendKey}`);
     } catch (err) {
       console.error(`❌ Failed to start detection ${backendKey}:`, err);
     }
@@ -199,7 +197,6 @@ const Threats: React.FC = () => {
           setError(null);
 
           // 🔍 DEBUG: Log all camera data
-          console.log("📡 Live Data Received:", data);
           Object.entries(data.cameras).forEach(([key, cam]) => {
             console.log(`📹 [${key}] Visible: ${cam.visible}, Objects: ${cam.objects?.length || 0}`);
             if (cam.objects && cam.objects.length > 0) {
@@ -236,21 +233,16 @@ const Threats: React.FC = () => {
     restrictedCameras.forEach((cam) => {
       const liveCam = liveData.cameras[cam.backendKey];
 
-      // 🔍 DEBUG
-      console.log(`🔍 [${cam.id}] Checking backend key: ${cam.backendKey}`);
-      console.log(`🔍 [${cam.id}] Live cam data:`, liveCam);
+
 
       if (!liveCam?.objects || liveCam.objects.length === 0) {
-        console.log(`🔍 [${cam.id}] No objects found`);
         return;
       }
 
-      console.log(`🔍 [${cam.id}] ${liveCam.objects.length} objects found`);
 
       liveCam.objects.forEach((obj) => {
         // Only check Person and Vehicle
         if (obj.category !== "Person" && obj.category !== "Vehicle") {
-          console.log(`🔍 [${cam.id}] Ignoring ${obj.class} (${obj.category})`);
           return;
         }
 
@@ -260,7 +252,6 @@ const Threats: React.FC = () => {
         const ny = cy / videoSize.height;
         const isInside = isPointInPolygon(nx, ny, cam.restrictedPolygon);
 
-        console.log(`🔍 [${cam.id}] ${obj.class} at (${nx.toFixed(2)}, ${ny.toFixed(2)}) - Inside: ${isInside}`);
 
         if (isInside) {
           newViolations.push({
@@ -277,7 +268,6 @@ const Threats: React.FC = () => {
     });
 
     if (newViolations.length > 0) {
-      console.log(`🚨 ${newViolations.length} new violations detected!`);
       setViolations((prev) => {
         const existing = new Set(prev.map(v => `${v.zoneName}-${v.objectType}`));
         const unique = newViolations.filter(v => !existing.has(`${v.zoneName}-${v.objectType}`));
@@ -734,11 +724,7 @@ const Threats: React.FC = () => {
 
           const totalDetections = allObjects.length;
 
-          // 🔍 DEBUG
-          console.log(`📹 [${cam.id}] backendKey: ${cam.backendKey}, liveCam:`, liveCam);
-          console.log(`📹 [${cam.id}] objects: ${objects.length}, hasIntrusion: ${hasIntrusion}`);
-
-          return (
+              return (
             <div
               key={cam.id}
               style={{
