@@ -1,3 +1,5 @@
+// backend/src/controller/ai_controller.ts
+
 import { Request, Response } from "express";
 
 interface AnalysisRequest {
@@ -39,53 +41,56 @@ export const analyzeSituation = async (req: Request, res: Response) => {
       });
     }
 
-    // Python AI backend
+    // Python AI service deployed separately on Render
     const pythonApiUrl =
       process.env.PYTHON_API_URL ||
       "https://sudarshana-ai-python.onrender.com";
 
-    console.log("🤖 Calling Python AI:", pythonApiUrl);
+    console.log("🤖 Sending AI request to:", pythonApiUrl);
 
-    const response = await fetch(`${pythonApiUrl}/api/situation`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        query: query || "",
-        zone: zone || null,
-        patternData: patternData || null,
-        correlationData: correlationData || null,
-        historicalCases: historicalCases || [],
-      }),
-    });
+    const pythonResponse = await fetch(
+      `${pythonApiUrl}/api/situation`,
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          query: query || "",
+          zone: zone || null,
+          patternData: patternData || null,
+          correlationData: correlationData || null,
+          historicalCases: historicalCases || [],
+        }),
+      }
+    );
 
-    const data = await response.json().catch(() => null);
+    const data = await pythonResponse.json();
 
-    console.log("🤖 Python AI response:", response.status, data);
+    console.log(
+      "🤖 Python AI response:",
+      pythonResponse.status,
+      data
+    );
 
-    if (!response.ok) {
-      console.error("❌ Python AI error:", data);
-
-      return res.status(response.status).json({
+    if (!pythonResponse.ok) {
+      return res.status(pythonResponse.status).json({
         success: false,
-        message:
-          data?.detail ||
-          data?.message ||
-          "Python AI service unavailable",
+        message: data.detail || data.message || "Python AI service failed",
         response:
-          data?.response ||
-          "⚠️ AI service is currently unavailable. Please try again later.",
+          data.response ||
+          "⚠️ AI service returned an error.",
       });
     }
 
     return res.json({
       success: true,
-      response: data?.response || "Analysis complete.",
-      context: data?.context || {},
-      sources: data?.sources || ["AI Analysis"],
+      response: data.response || "Analysis complete.",
+      context: data.context || {},
+      sources: data.sources || ["AI Analysis"],
     });
-  } catch (error: any) {
+
+  } catch (error) {
     console.error("❌ AI Controller Error:", error);
 
     return res.status(500).json({
@@ -93,7 +98,6 @@ export const analyzeSituation = async (req: Request, res: Response) => {
       message: "Failed to connect to Python AI service",
       response:
         "❌ Unable to connect to the AI service. Please check the Python backend.",
-      error: error?.message || "Unknown error",
     });
   }
 };
