@@ -67,7 +67,7 @@ export const analyzeSituation = async (
     throw new Error("Authentication required");
   }
 
-  const response = await fetch(`${PYTHON_API_URL}/api/situation`, {
+  const response = await fetch(`${APIURL}/situation`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -92,24 +92,36 @@ export const analyzeSituation = async (
 
 export const checkAIStatus = async (): Promise<AIStatus> => {
   try {
-    const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
-    
+    const token =
+      localStorage.getItem("authToken") ||
+      sessionStorage.getItem("authToken");
+
     if (!token) {
-      return { status: "offline", message: "Authentication required" };
+      return {
+        status: "offline",
+        message: "Authentication required",
+      };
     }
 
-    const response = await fetch(`${APIURL}/status`, {
-      headers: {
-        "Authorization": `Bearer ${token}`,
-      },
-    });
+    const response = await fetch(`${PYTHON_API_URL}/api/health`);
 
     if (!response.ok) {
-      return { status: "error", message: "AI service unavailable" };
+      return {
+        status: "error",
+        message: "AI service unavailable",
+      };
     }
 
-    return response.json();
+    return {
+      status: "connected",
+      message: "AI service connected",
+    };
   } catch (error) {
-    return { status: "offline", message: "Cannot connect to AI service" };
+    console.error("AI STATUS ERROR:", error);
+
+    return {
+      status: "offline",
+      message: "Cannot connect to AI service",
+    };
   }
 };
