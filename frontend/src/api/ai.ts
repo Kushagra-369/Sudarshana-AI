@@ -61,8 +61,10 @@ export const analyzeSituation = async (
     historicalCases?: any[];
   }
 ): Promise<AIResponse> => {
-  const token = localStorage.getItem("authToken") || sessionStorage.getItem("authToken");
-  
+  const token =
+    localStorage.getItem("authToken") ||
+    sessionStorage.getItem("authToken");
+
   if (!token) {
     throw new Error("Authentication required");
   }
@@ -82,12 +84,17 @@ export const analyzeSituation = async (
     }),
   });
 
+  const data = await response.json().catch(() => null);
+
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.message || "Failed to analyze situation");
+    throw new Error(
+      data?.message ||
+      data?.detail ||
+      "Failed to analyze situation"
+    );
   }
 
-  return response.json();
+  return data;
 };
 
 export const checkAIStatus = async (): Promise<AIStatus> => {
