@@ -284,17 +284,29 @@ def process_camera(camera_name, video_path):
 def start_camera(camera_name):
     if camera_name not in CAMERAS:
         return False
-    if camera_running.get(camera_name):
-        return False
+
+    # IMPORTANT:
+    # Mark camera as running BEFORE starting the thread.
+    # This prevents multiple start requests from creating
+    # duplicate detection threads while YOLO is loading.
+    with state_lock:
+        if camera_running.get(camera_name, False):
+            return False
+
+        camera_running[camera_name] = True
+        camera_state[camera_name]["status"] = "STARTING"
 
     video_path = CAMERAS[camera_name]
+
     thread = threading.Thread(
         target=process_camera,
         args=(camera_name, video_path),
         daemon=True
     )
+
     camera_threads[camera_name] = thread
     thread.start()
+
     return True
 
 def stop_camera(camera_name):

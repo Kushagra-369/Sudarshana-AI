@@ -1,20 +1,20 @@
 {
     "system": "SUDARSHANA-AI",
-    "updated_at": "2026-09-11T16:48:43.533501",
+    "updated_at": "2026-09-11T16:48:55.360367",
     "no_object_timeout": 10,
     "cameras": {
         "cam1": {
             "camera": "cam1",
             "source": "/home/kushagra369/Desktop/Sudarshana-AI/backend/ai/detection/cars.mp4",
             "object_present": false,
-            "last_detection": "2026-09-11T16:48:42.961239",
-            "seconds_since_detection": 0.57,
-            "visible": true,
+            "last_detection": "2026-09-11T16:48:55.358719",
+            "seconds_since_detection": 0.0,
+            "visible": false,
             "objects": [],
-            "frame": 506,
+            "frame": 623,
             "fps": 26.698092993357616,
-            "video_time": 18.95,
-            "status": "LIVE"
+            "video_time": 23.34,
+            "status": "ENDED"
         },
         "cam2": {
             "camera": "cam2",
