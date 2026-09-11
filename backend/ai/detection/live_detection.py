@@ -156,7 +156,6 @@ def process_camera(camera_name, video_path):
     detection_count = 0
     animal_count = 0
 
-    camera_running[camera_name] = True
 
     with state_lock:
         camera_state[camera_name]["visible"] = True
